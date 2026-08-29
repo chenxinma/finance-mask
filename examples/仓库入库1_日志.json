@@ -1,0 +1,253 @@
+{
+  "file": "仓库入库1.xlsx",
+  "source_path": "examples\\仓库入库1.xlsx",
+  "output_file": "仓库入库1_脱敏.xlsx",
+  "operator": "ma",
+  "timestamp": "2026-08-29T23:25:58.184424",
+  "file_hash": "fe7b21b0812b47c094e620e5b937627f96cbf76159071cf8e625c311bb283fd8",
+  "total_changes": 20,
+  "total_errors": 0,
+  "changes": [
+    {
+      "site_id": "Sheet1_A10",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A10",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A001",
+      "redacted": "CK-**01",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A11",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A11",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A002",
+      "redacted": "CK-**02",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A12",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A12",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A003",
+      "redacted": "CK-**03",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A13",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A13",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A004",
+      "redacted": "CK-**04",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A14",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A14",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A005",
+      "redacted": "CK-**05",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A15",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A15",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A006",
+      "redacted": "CK-**06",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A16",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A16",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A007",
+      "redacted": "CK-**07",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A17",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A17",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A008",
+      "redacted": "CK-**08",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A18",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A18",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A009",
+      "redacted": "CK-**09",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_A19",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "A19",
+        "column": "单据信息_单据编号"
+      },
+      "original": "CK-A010",
+      "redacted": "CK-**10",
+      "action": "mask_account"
+    },
+    {
+      "site_id": "Sheet1_E10",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E10",
+        "column": "入库详情_本次入库"
+      },
+      "original": "120",
+      "redacted": "118.08",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E11",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E11",
+        "column": "入库详情_本次入库"
+      },
+      "original": "350",
+      "redacted": "343.22",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E12",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E12",
+        "column": "入库详情_本次入库"
+      },
+      "original": "220",
+      "redacted": "226.46",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E13",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E13",
+        "column": "入库详情_本次入库"
+      },
+      "original": "480",
+      "redacted": "479.60",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E14",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E14",
+        "column": "入库详情_本次入库"
+      },
+      "original": "90",
+      "redacted": "93.29",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E15",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E15",
+        "column": "入库详情_本次入库"
+      },
+      "original": "150",
+      "redacted": "147.83",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E16",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E16",
+        "column": "入库详情_本次入库"
+      },
+      "original": "300",
+      "redacted": "306.09",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E17",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E17",
+        "column": "入库详情_本次入库"
+      },
+      "original": "210",
+      "redacted": "214.52",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E18",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E18",
+        "column": "入库详情_本次入库"
+      },
+      "original": "180",
+      "redacted": "188.16",
+      "action": "perturb"
+    },
+    {
+      "site_id": "Sheet1_E19",
+      "location": {
+        "type": "excel",
+        "sheet": "Sheet1",
+        "cell": "E19",
+        "column": "入库详情_本次入库"
+      },
+      "original": "160",
+      "redacted": "157.77",
+      "action": "perturb"
+    }
+  ],
+  "errors": []
+}

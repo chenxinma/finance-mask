@@ -1,0 +1,107 @@
+# 差分脱敏策略示例
+# 适用于需要保持金额之间差值或比例关系的场景
+
+metadata:
+  version: "1.0"
+  source_file: 资产负债表.xlsx
+  generated_at: "2024-01-15T10:00:00"
+  total_sites: 6
+  description: "使用差分偏移模式，保持资产=负债+所有者权益的等式关系"
+
+# 全局参数
+global_params:
+  differential_shift: "1139426.80"  # 统一偏移量（约114万）
+
+# 位点列表
+sites:
+  # 资产负债表 - 使用差分偏移保持等式关系
+  - site_id: sheet_资产负债表_B2
+    location:
+      type: excel
+      sheet: 资产负债表
+      cell: B2
+      column: 期末余额
+    original_value: "10000000"
+    detected_type: amount
+    discovered_by: column_rule
+    enabled: true
+    action: differential_shift
+    params:
+      shift: "1139426.80"  # 与负债和所有者权益使用相同的偏移量
+    # description: "资产合计"
+
+  - site_id: sheet_资产负债表_B10
+    location:
+      type: excel
+      sheet: 资产负债表
+      cell: B10
+      column: 期末余额
+    original_value: "6000000"
+    detected_type: amount
+    discovered_by: column_rule
+    enabled: true
+    action: differential_shift
+    params:
+      shift: "1139426.80"  # 与资产使用相同的偏移量
+    # description: "负债合计"
+
+  - site_id: sheet_资产负债表_B15
+    location:
+      type: excel
+      sheet: 资产负债表
+      cell: B15
+      column: 期末余额
+    original_value: "4000000"
+    detected_type: amount
+    discovered_by: column_rule
+    enabled: true
+    action: differential_shift
+    params:
+      shift: "1139426.80"  # 与资产和负债使用相同的偏移量
+    # description: "所有者权益合计"
+
+  # 利润表 - 使用比例缩放保持毛利率不变
+  - site_id: sheet_利润表_B2
+    location:
+      type: excel
+      sheet: 利润表
+      cell: B2
+      column: 本期金额
+    original_value: "10000000"
+    detected_type: amount
+    discovered_by: column_rule
+    enabled: true
+    action: proportional_scale
+    params:
+      scale: "1.0418"  # 统一缩放因子
+    # description: "营业收入"
+
+  - site_id: sheet_利润表_B3
+    location:
+      type: excel
+      sheet: 利润表
+      cell: B3
+      column: 本期金额
+    original_value: "7000000"
+    detected_type: amount
+    discovered_by: column_rule
+    enabled: true
+    action: proportional_scale
+    params:
+      scale: "1.0418"  # 与营业收入使用相同的缩放因子
+    # description: "营业成本"
+
+  - site_id: sheet_利润表_B4
+    location:
+      type: excel
+      sheet: 利润表
+      cell: B4
+      column: 本期金额
+    original_value: "3000000"
+    detected_type: amount
+    discovered_by: column_rule
+    enabled: true
+    action: proportional_scale
+    params:
+      scale: "1.0418"  # 与营业收入和成本使用相同的缩放因子
+    # description: "毛利润"
