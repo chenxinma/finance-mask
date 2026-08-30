@@ -17,6 +17,15 @@ class TestAmountRedactor:
         assert AmountRedactor._parse_number("500千元") == Decimal("500000")
         assert AmountRedactor._parse_number("100百万") == Decimal("100000000")
 
+    def test_precision_with_unit(self):
+        """测试带单位金额的精度降低"""
+        # 保持原始单位，降低精度到整数
+        assert AmountRedactor.precision("22.12亿元") == "22亿元"
+        assert AmountRedactor.precision("22.55亿元") == "23亿元"
+        assert AmountRedactor.precision("100万元") == "100万元"
+        assert AmountRedactor.precision("2.3万亿元") == "2万亿元"
+        assert AmountRedactor.precision("-3.14亿元") == "-3亿元"
+
     def test_precision_basic(self):
         """测试降低精度基本功能"""
         result = AmountRedactor.precision("12345678.90", unit="million", decimal_places=2)

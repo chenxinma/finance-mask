@@ -33,15 +33,27 @@ class AmountRedactor:
         降低精度模式
         
         Args:
-            value: 原始值（支持千分位格式、负数）
-            unit: 目标单位 (thousand/million/billion)
+            value: 原始值（支持千分位格式、负数、带中文单位的金额）
+            unit: 目标单位 (thousand/million/billion)，当输入带单位时会被忽略
             decimal_places: 保留小数位数
             
         Returns:
-            格式化后的字符串
+            格式化后的字符串，保持原始单位
         """
         try:
-            # 解析数值
+            # 提取原始数值和单位
+            num_part, original_unit = cls._extract_original_unit(value)
+            
+            # 如果输入带单位，解析数值部分（不乘以单位因子）
+            if original_unit:
+                # 解析纯数值部分
+                clean_num = num_part.replace(",", "").replace(" ", "")
+                numeric_value = Decimal(clean_num)
+                # 降低精度：四舍五入到整数
+                result = numeric_value.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                return f"{int(result)}{original_unit}"
+            
+            # 不带单位的情况，使用原有逻辑
             numeric_value = cls._parse_number(value)
 
             # 处理零值
@@ -202,6 +214,41 @@ class AmountRedactor:
             return Decimal(clean)
         except Exception:
             raise ValueError(f"无法解析为数值: {value}")
+
+    @classmethod
+    def _extract_original_unit(cls, value: str) -> tuple[str, str]:
+        """
+        提取原始数值和单位
+        
+        Args:
+            value: 原始值（如 "22.12亿元"）
+            
+        Returns:
+            (数值部分, 单位部分) 元组，如 ("22.12", "亿元")
+        """
+        if not value:
+            return (value, "")
+
+        clean = str(value).strip().replace(",", "").replace(" ", "")
+
+        # 中文单位列表（按长度从长到短匹配）
+        unit_patterns = ["万亿", "亿", "百万", "万", "千"]
+
+        for unit_text in unit_patterns:
+            if unit_text in clean:
+                num_part = clean.split(unit_text)[0]
+                # 处理可能的 "元" 后缀
+                unit_part = unit_text
+                remaining = clean.split(unit_text)[1]
+                if remaining.startswith("元"):
+                    unit_part = unit_text + "元"
+                return (num_part, unit_part)
+
+        # 检查是否有 "元" 后缀
+        if clean.endswith("元"):
+            return (clean[:-1], "元")
+
+        return (clean, "")
 
     @classmethod
     def generate_perturbation_sequence(
