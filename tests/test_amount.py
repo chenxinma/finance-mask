@@ -8,6 +8,15 @@ from src.finance_mask.engine.amount import AmountRedactor
 class TestAmountRedactor:
     """金额脱敏器测试"""
 
+    def test_parse_number_with_unit(self):
+        """测试带中文单位的数值解析"""
+        assert AmountRedactor._parse_number("1.5亿元") == Decimal("150000000")
+        assert AmountRedactor._parse_number("100万元") == Decimal("1000000")
+        assert AmountRedactor._parse_number("5000万元") == Decimal("50000000")
+        assert AmountRedactor._parse_number("2.3万亿元") == Decimal("2300000000000")
+        assert AmountRedactor._parse_number("500千元") == Decimal("500000")
+        assert AmountRedactor._parse_number("100百万") == Decimal("100000000")
+
     def test_precision_basic(self):
         """测试降低精度基本功能"""
         result = AmountRedactor.precision("12345678.90", unit="million", decimal_places=2)

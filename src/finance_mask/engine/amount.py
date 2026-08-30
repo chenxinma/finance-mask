@@ -165,12 +165,38 @@ class AmountRedactor:
 
     @classmethod
     def _parse_number(cls, value: str) -> Decimal:
-        """解析数值字符串为 Decimal"""
+        """解析数值字符串为 Decimal，支持带中文单位的金额"""
         if not value:
             raise ValueError("空值无法解析")
 
         # 移除千分位逗号和空格
         clean = str(value).strip().replace(",", "").replace(" ", "")
+
+        # 中文单位到数值的映射
+        unit_multipliers = {
+            "万亿": Decimal("1000000000000"),
+            "亿": Decimal("100000000"),
+            "百万": Decimal("1000000"),
+            "万": Decimal("10000"),
+            "千": Decimal("1000"),
+        }
+
+        # 尝试匹配带单位的数值
+        # 例如: "1.5亿元" -> 数值=1.5, 单位=亿
+        for unit_text, multiplier in unit_multipliers.items():
+            if unit_text in clean:
+                # 提取数值部分
+                num_part = clean.split(unit_text)[0]
+                # 移除可能的 "元" 后缀
+                num_part = num_part.rstrip("元")
+                try:
+                    return Decimal(num_part) * multiplier
+                except Exception:
+                    raise ValueError(f"无法解析为数值: {value}")
+
+        # 移除 "元" 后缀（如果有的话）
+        if clean.endswith("元"):
+            clean = clean[:-1]
 
         try:
             return Decimal(clean)
