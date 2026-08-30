@@ -1,0 +1,166 @@
+{
+  "version": "1.0",
+  "description": "列头规则配置 - 用于表头定位识别敏感数据",
+  "rules": [
+    {
+      "match_type": "exact",
+      "pattern": "营业收入",
+      "action": "precision",
+      "params": {"unit": "million", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "营业总收入",
+      "action": "precision",
+      "params": {"unit": "million", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "净利润",
+      "action": "precision",
+      "params": {"unit": "million", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "归母净利润",
+      "action": "precision",
+      "params": {"unit": "million", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "总资产",
+      "action": "precision",
+      "params": {"unit": "billion", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "总负债",
+      "action": "precision",
+      "params": {"unit": "billion", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "净资产",
+      "action": "precision",
+      "params": {"unit": "billion", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "合同金额",
+      "action": "perturb",
+      "params": {"percentage": 5},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "合同总额",
+      "action": "perturb",
+      "params": {"percentage": 5},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "现金流",
+      "action": "precision",
+      "params": {"unit": "million", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "毛利率",
+      "action": "mask",
+      "params": null,
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "客户名称",
+      "action": "alias",
+      "params": {"prefix": "客户"},
+      "detected_type": "entity",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "联系人",
+      "action": "mask_name",
+      "params": null,
+      "detected_type": "person",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "账号",
+      "action": "mask_account",
+      "params": {"keep_prefix": 3, "keep_suffix": 4},
+      "detected_type": "account",
+      "priority": 1
+    },
+    {
+      "match_type": "exact",
+      "pattern": "合同编号",
+      "action": "mask_account",
+      "params": {"keep_prefix": 3, "keep_suffix": 4},
+      "detected_type": "account",
+      "priority": 1
+    },
+    {
+      "match_type": "regex",
+      "pattern": ".*金额.*",
+      "action": "precision",
+      "params": {"unit": "million", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 2
+    },
+    {
+      "match_type": "regex",
+      "pattern": ".*收入.*",
+      "action": "precision",
+      "params": {"unit": "million", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 2
+    },
+    {
+      "match_type": "regex",
+      "pattern": ".*利润.*",
+      "action": "precision",
+      "params": {"unit": "million", "decimal_places": 2},
+      "detected_type": "amount",
+      "priority": 2
+    },
+    {
+      "match_type": "regex",
+      "pattern": ".*单据编号.*",
+      "action": "mask_account",
+      "params": {"keep_prefix": 3, "keep_suffix": 4},
+      "detected_type": "account",
+      "priority": 2
+    },
+    {
+      "match_type": "regex",
+      "pattern": ".*本次入库.*",
+      "action": "precision",
+      "params": {"unit": "thousand", "decimal_places": 0},
+      "detected_type": "amount",
+      "priority": 2
+    }
+  ]
+}

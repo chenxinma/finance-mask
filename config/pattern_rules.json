@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "description": "正则规则配置 - 用于全文扫描识别敏感数据",
+  "rules": {
+    "amount": [
+      {
+        "name": "amount_with_commas",
+        "pattern": "-?\\d{1,3}(,\\d{3})+\\.\\d{2}",
+        "description": "千分位金额（带小数）"
+      },
+      {
+        "name": "amount_with_commas_int",
+        "pattern": "-?\\d{1,3}(,\\d{3})+",
+        "description": "千分位金额（整数）"
+      },
+      {
+        "name": "amount_no_commas",
+        "pattern": "-?\\d{4,}\\.\\d{2}",
+        "description": "无千分位金额（带小数）"
+      },
+      {
+        "name": "amount_no_commas_int",
+        "pattern": "-?\\d{5,}",
+        "description": "无千分位金额（整数，5位以上）"
+      }
+    ],
+    "entity": [
+      {
+        "name": "entity_chinese",
+        "pattern": "[\\u4e00-\\u9fa5]{2,20}(公司|集团|银行|证券|基金|保险|信托|投资|控股|科技|实业|贸易)",
+        "description": "中文机构名"
+      },
+      {
+        "name": "entity_with_prefix",
+        "pattern": "[A-Za-z0-9\\u4e00-\\u9fa5]{1,30}(公司|集团|银行|证券|基金|有限公司)",
+        "description": "含英文/数字前缀的机构名"
+      }
+    ],
+    "person": [],
+    "account": [
+      {
+        "name": "bank_account",
+        "pattern": "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4,}",
+        "description": "银行卡号（16-19位）"
+      },
+      {
+        "name": "contract_no",
+        "pattern": "[A-Za-z]{2,4}[-/]?\\d{4}[-/]?\\d{4,}",
+        "description": "合同编号"
+      }
+    ]
+  }
+}
