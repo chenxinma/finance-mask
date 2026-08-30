@@ -64,7 +64,10 @@ class Location(BaseModel):
         if self.type == SiteType.EXCEL:
             return f"[Excel] {self.sheet}!{self.cell}"
         else:
-            return f"[PPT] 幻灯片{self.slide} 形状{self.shape_id}"
+            base = f"[PPT] 幻灯片{self.slide} 形状{self.shape_id}"
+            if self.table_location:
+                base += f" {self.table_location}"
+            return base
 
 
 class Site(BaseModel):

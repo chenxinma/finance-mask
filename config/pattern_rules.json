@@ -15,7 +15,7 @@
       },
       {
         "name": "amount_with_commas_int",
-        "pattern": "-?\\d{1,3}(,\\d{3})+(?!%)",
+        "pattern": "-?\\d{1,3}(,\\d{3})+(?![.\\d]*%)",
         "description": "千分位金额（整数，排除百分比）"
       },
       {
@@ -32,13 +32,13 @@
     "entity": [
       {
         "name": "entity_chinese",
-        "pattern": "(天齐锂业|格林布什|措拉|奎纳|四川措拉)",
+        "pattern": "(天齐锂业(?:股份有限公司)?|格林布什|措拉|奎纳|四川措拉)",
         "description": "中文机构名"
       },
       {
-        "name": "entity_with_prefix",
-        "pattern": "[A-Za-z0-9\\u4e00-\\u9fa5]{1,30}(公司|集团|银行|证券|基金|有限公司)",
-        "description": "含英文/数字前缀的机构名"
+        "name": "entity_english",
+        "pattern": "[A-Z][A-Za-z0-9]{1,14}(公司|集团|银行|证券|基金|有限公司)",
+        "description": "英文机构名"
       }
     ],
     "person": [],

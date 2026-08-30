@@ -3,6 +3,14 @@
   "description": "列头规则配置 - 用于表头定位识别敏感数据",
   "rules": [
     {
+      "match_type": "regex",
+      "pattern": ".+年(上|下)半年",
+      "action": "perturb",
+      "params": {"percentage": 10},
+      "detected_type": "amount",
+      "priority": 1
+    },
+    {
       "match_type": "exact",
       "pattern": "营业收入",
       "action": "precision",

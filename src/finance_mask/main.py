@@ -82,8 +82,12 @@ def generate(input: str, output: str, verbose: bool):
                     for sheet_name, rules in column_rules_map.items():
                         all_column_rules.extend(rules)
                     
-                    # 只有当没有列规则时才获取位点（用于 Form 类型表格）
-                    if not column_rules_map:
+                    if column_rules_map:
+                        # Data 类型表格：额外扫描表头之前和数据之后的文本
+                        extra_sites = excel_scanner.scan_non_data_cells(file_path)
+                        all_sites.extend(extra_sites)
+                    else:
+                        # Form 类型表格：全量扫描
                         sites = excel_scanner.scan(file_path)
                         all_sites.extend(sites)
                 elif file_path.suffix.lower() == ".pptx":
@@ -255,12 +259,13 @@ def redact(
 
 
 def _deduplicate_sites(sites: list[Site]) -> list[Site]:
-    """去重：同一位置的位点合并敏感类型取并集"""
+    """去重：同一位置+同一值的位点合并，敏感类型取并集"""
     site_map: dict[str, Site] = {}
 
     for site in sites:
-        # 使用 location 作为去重键
-        location_key = str(site.location)
+        # 使用 location + original_value 作为去重键
+        # 这样同一位置的不同值都会被保留
+        location_key = f"{site.location}:{site.original_value}"
 
         if location_key in site_map:
             existing = site_map[location_key]

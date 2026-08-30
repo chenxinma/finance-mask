@@ -26,6 +26,8 @@ class Executor:
         self.strategy = strategy
         self.operator = operator
         self.audit_logger: Optional[AuditLogger] = None
+        # 重置名称脱敏器的计数器和映射表，确保每个文件独立
+        NameRedactor.reset_counter()
 
     def execute(
         self,
@@ -279,6 +281,12 @@ class Executor:
                 # 定位形状
                 slide = prs.slides[site.location.slide - 1]  # slide 从 1 开始
                 shape = None
+
+                # 特殊处理备注位点
+                if site.location.shape_id == "notes" and site.location.table_location == "notes":
+                    self._redact_notes(slide, site, dry_run, results)
+                    continue
+
                 for s in slide.shapes:
                     if s.name == site.location.shape_id or str(s.shape_id) == site.location.shape_id:
                         shape = s
@@ -309,6 +317,52 @@ class Executor:
             except Exception as e:
                 results["success"] = False
                 results["error"] = f"保存 PPT 文件失败: {e}"
+
+    def _redact_notes(self, slide, site: Site, dry_run: bool, results: dict) -> None:
+        """脱敏备注内容"""
+        try:
+            if not slide.has_notes_slide:
+                return
+
+            notes_slide = slide.notes_slide
+            if notes_slide is None:
+                return
+
+            notes_text_frame = notes_slide.notes_text_frame
+            if notes_text_frame is None:
+                return
+
+            # 执行脱敏
+            redacted_value = self._redact_value(
+                site.original_value, site.action, site.params, site.detected_type
+            )
+
+            # 记录审计日志
+            self.audit_logger.log_change(
+                site=site,
+                original_value=site.original_value,
+                redacted_value=redacted_value,
+                action=site.action.value,
+            )
+
+            # 替换文本（非 dry_run 模式）
+            if not dry_run:
+                for paragraph in notes_text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        if site.original_value in run.text:
+                            run.text = run.text.replace(site.original_value, redacted_value)
+                            break
+                    else:
+                        # 如果没在任何 run 中找到，尝试直接替换段落文本
+                        if site.original_value in paragraph.text:
+                            paragraph.text = paragraph.text.replace(site.original_value, redacted_value)
+
+            results["processed"] += 1
+
+        except Exception as e:
+            logger.error(f"处理备注位点 {site.site_id} 失败: {e}")
+            self.audit_logger.log_error(site.site_id, str(e))
+            results["errors"] += 1
 
     def _redact_table_cell(self, table, site: Site, dry_run: bool, results: dict) -> None:
         """脱敏表格单元格"""

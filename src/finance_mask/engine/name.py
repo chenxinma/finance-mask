@@ -10,6 +10,8 @@ class NameRedactor:
 
     # 机构名计数器
     _entity_counter: dict[str, int] = {}
+    # 实体名映射表：确保相同实体名始终映射到同一个别名
+    _entity_mapping: dict[str, str] = {}
 
     @classmethod
     def alias(
@@ -36,6 +38,10 @@ class NameRedactor:
         if mapping and value in mapping:
             return mapping[value]
 
+        # 检查是否已在全局映射表中
+        if value in cls._entity_mapping:
+            return cls._entity_mapping[value]
+
         # 自动生成代号
         if prefix not in cls._entity_counter:
             cls._entity_counter[prefix] = 0
@@ -46,7 +52,12 @@ class NameRedactor:
         # 使用字母编号：A, B, ..., Z, AA, AB, ...
         letter = cls._number_to_letter(counter)
 
-        return f"[{prefix}{letter}]"
+        result = f"[{prefix}{letter}]"
+        
+        # 存入全局映射表
+        cls._entity_mapping[value] = result
+        
+        return result
 
     @classmethod
     def mask_name(
@@ -90,8 +101,14 @@ class NameRedactor:
 
     @classmethod
     def reset_counter(cls) -> None:
-        """重置计数器（用于新的脱敏任务）"""
+        """重置计数器和映射表（用于新的脱敏任务）"""
         cls._entity_counter.clear()
+        cls._entity_mapping.clear()
+
+    @classmethod
+    def get_entity_mapping(cls) -> dict[str, str]:
+        """获取当前实体映射表（用于调试或导出）"""
+        return cls._entity_mapping.copy()
 
     @classmethod
     def _number_to_letter(cls, n: int) -> str:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -79,6 +80,10 @@ class PPTScanner(BaseScanner):
                 )
                 sites.extend(chart_sites)
 
+        # 扫描备注内容
+        notes_sites = self._scan_notes(filepath, slide_idx, slide)
+        sites.extend(notes_sites)
+
         return sites
 
     def _scan_table(
@@ -135,6 +140,7 @@ class PPTScanner(BaseScanner):
                         shape_name=shape_name,
                         value=matched_value,
                         detected_type=detected_type,
+                        table_location=f"R{row_idx + 1}C{col_idx + 1}",
                     )
                     if site:
                         sites.append(site)
@@ -200,6 +206,174 @@ class PPTScanner(BaseScanner):
 
         return sites
 
+    def _scan_notes(self, filepath: Path, slide_idx: int, slide) -> list[Site]:
+        """扫描幻灯片备注内容"""
+        sites: list[Site] = []
+
+        try:
+            # 检查是否有备注幻灯片
+            if not slide.has_notes_slide:
+                return sites
+
+            notes_slide = slide.notes_slide
+            if notes_slide is None:
+                return sites
+
+            # 扫描备注文本框
+            notes_text_frame = notes_slide.notes_text_frame
+            if notes_text_frame is None:
+                return sites
+
+            for paragraph in notes_text_frame.paragraphs:
+                full_text = paragraph.text.strip()
+                if not full_text:
+                    continue
+
+                # 列头规则匹配（仅对短文本应用，类似列头）
+                # 备注通常是长文本，列头规则只应在文本很短时才匹配
+                if len(full_text) <= 20:  # 短文本才尝试列头匹配
+                    rule = self.column_matcher.match(full_text)
+                    if rule:
+                        # 从文本中提取数值部分
+                        extracted_value = self._extract_value_from_text(full_text, rule)
+                        if extracted_value:
+                            site = self._create_site_from_notes_with_rule(
+                                slide_idx=slide_idx,
+                                value=extracted_value,
+                                rule=rule,
+                            )
+                            if site:
+                                sites.append(site)
+                        continue
+
+                # 全文正则扫描
+                pattern_results = self.pattern_registry.scan_text(full_text)
+                for matched_value, detected_type, rule_name in pattern_results:
+                    site = self._create_site_from_notes(
+                        slide_idx=slide_idx,
+                        value=matched_value,
+                        detected_type=detected_type,
+                    )
+                    if site:
+                        sites.append(site)
+
+        except Exception as e:
+            logger.warning(f"扫描备注时出错: {e}")
+
+        return sites
+
+    def _create_site_from_notes(
+        self,
+        slide_idx: int,
+        value: str,
+        detected_type: DetectedType,
+    ) -> Optional[Site]:
+        """从备注创建位点（全文正则扫描）"""
+        action, params = self._get_default_action(detected_type)
+
+        location = Location(
+            type=SiteType.PPT,
+            slide=slide_idx,
+            shape_id="notes",
+            table_location="notes",
+        )
+
+        site_id = self._generate_site_id("notes", str(slide_idx))
+
+        return Site(
+            site_id=site_id,
+            location=location,
+            original_value=value,
+            detected_type=detected_type,
+            discovered_by=DiscoveredBy.FULLTEXT_SCAN,
+            enabled=True,
+            action=action,
+            params=params,
+        )
+
+    def _extract_value_from_text(self, text: str, rule) -> Optional[str]:
+        """从文本中提取数值部分
+        
+        Args:
+            text: 原始文本（如 "营业收入 22.12亿元"）
+            rule: 匹配的列头规则
+            
+        Returns:
+            提取的数值字符串，如果无法提取则返回 None
+        """
+        if not text or not rule:
+            return None
+        
+        # 根据规则类型提取相应的值
+        detected_type = rule.detected_type
+        
+        if detected_type == DetectedType.AMOUNT:
+            # 提取金额数值
+            patterns = [
+                r"(-?\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*(?:万亿|亿|百万|万|千)?元?)",  # 带单位
+                r"(-?\d+(?:,\d{3})*(?:\.\d+)?)",  # 纯数字
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, text)
+                if match:
+                    return match.group(1).strip()
+        
+        elif detected_type == DetectedType.ENTITY:
+            # 提取机构名（移除列头关键词）
+            # 简单策略：返回整个文本
+            return text
+        
+        elif detected_type == DetectedType.PERSON:
+            # 提取人名
+            return text
+        
+        elif detected_type == DetectedType.ACCOUNT:
+            # 提取账号/合同号
+            patterns = [
+                r"(\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4,})",  # 银行卡号
+                r"([A-Za-z]{2,4}[-/]?\d{4}[-/]?\d{4,})",  # 合同编号
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, text)
+                if match:
+                    return match.group(1).strip()
+        
+        # 默认返回原文
+        return text
+
+    def _create_site_from_notes_with_rule(
+        self,
+        slide_idx: int,
+        value: str,
+        rule,
+    ) -> Optional[Site]:
+        """从备注创建位点（列头规则匹配）"""
+        if rule.action:
+            action = rule.action
+            params = rule.params
+        else:
+            action, params = self._get_default_action(rule.detected_type)
+
+        location = Location(
+            type=SiteType.PPT,
+            slide=slide_idx,
+            shape_id="notes",
+            table_location="notes",
+        )
+
+        site_id = self._generate_site_id("notes", str(slide_idx))
+
+        return Site(
+            site_id=site_id,
+            location=location,
+            original_value=value,
+            detected_type=rule.detected_type,
+            discovered_by=DiscoveredBy.COLUMN_RULE,
+            enabled=True,
+            action=action,
+            params=params,
+        )
+
     def _create_site_from_column(
         self,
         slide_idx: int,
@@ -243,6 +417,7 @@ class PPTScanner(BaseScanner):
         shape_name: str,
         value: str,
         detected_type: DetectedType,
+        table_location: Optional[str] = None,
     ) -> Optional[Site]:
         """从正则规则创建位点"""
         action, params = self._get_default_action(detected_type)
@@ -251,9 +426,14 @@ class PPTScanner(BaseScanner):
             type=SiteType.PPT,
             slide=slide_idx,
             shape_id=shape_name,
+            table_location=table_location,
         )
 
-        site_id = self._generate_site_id("slide", str(slide_idx), str(shape_id))
+        # 生成 site_id，如果有 table_location 则包含在内以确保唯一性
+        if table_location:
+            site_id = self._generate_site_id("slide", str(slide_idx), str(shape_id), table_location)
+        else:
+            site_id = self._generate_site_id("slide", str(slide_idx), str(shape_id))
 
         return Site(
             site_id=site_id,

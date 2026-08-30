@@ -68,6 +68,9 @@ class ExcelScannerV2(BaseScanner):
                     if column_rules:
                         # 应用列规则到整个列
                         sheet_sites = self._apply_column_rules(filepath, sheet_name, column_rules)
+                        # 扫描表头之前和数据之后的文本内容
+                        extra_sites = self._scan_extra_text(filepath, sheet_name, column_rules)
+                        sheet_sites.extend(extra_sites)
                     else:
                         # 如果没有列规则，回退到 Form 扫描
                         sheet_sites = self._scan_form_sheet(filepath, sheet_name)
@@ -119,6 +122,41 @@ class ExcelScannerV2(BaseScanner):
                     logger.error(f"获取工作表 '{sheet_name}' 列规则失败: {e}")
         
         return result
+
+    def scan_non_data_cells(self, filepath: Path) -> list[Site]:
+        """
+        扫描 Excel 文件中 Data 类型表格的非数据区域（表头之前、数据之后的文本）
+        
+        用于 generate 命令：当 Data 类型表格已有列规则时，
+        额外扫描表头之前和数据之后的文本内容（如公司名称、注释等）。
+        
+        Args:
+            filepath: Excel 文件路径
+            
+        Returns:
+            位点列表
+        """
+        sites: list[Site] = []
+        
+        classifications = self.layout_classifier.classify_with_fallback(filepath)
+        
+        for classification in classifications:
+            sheet_name = classification.sheet_name
+            sheet_type = classification.sheet_type
+            
+            if sheet_type != SheetType.DATA:
+                continue
+            
+            # 检查是否有列规则
+            column_rules = self._scan_data_sheet(filepath, sheet_name)
+            if not column_rules:
+                continue
+            
+            extra_sites = self._scan_extra_text(filepath, sheet_name, column_rules)
+            sites.extend(extra_sites)
+            logger.info(f"工作表 '{sheet_name}' 非数据区域扫描完成，发现 {len(extra_sites)} 个敏感位点")
+        
+        return sites
 
     def _scan_data_sheet(self, filepath: Path, sheet_name: str) -> list[ColumnRule]:
         """
@@ -282,6 +320,103 @@ class ExcelScannerV2(BaseScanner):
                 sites.append(site)
         
         wb.close()
+        return sites
+
+    def _scan_extra_text(
+        self,
+        filepath: Path,
+        sheet_name: str,
+        column_rules: list[ColumnRule],
+    ) -> list[Site]:
+        """
+        扫描表头之前和数据之后的文本内容
+        
+        对于 Data 类型表格，表头之前（如公司名称、表格标题）和
+        数据之后（如注释信息）的文本也需要进行敏感信息识别。
+        
+        Args:
+            filepath: Excel 文件路径
+            sheet_name: 工作表名称
+            column_rules: 列规则列表（用于判断表头行位置）
+            
+        Returns:
+            位点列表
+        """
+        sites: list[Site] = []
+        
+        try:
+            wb = load_workbook(str(filepath), data_only=True)
+            ws = wb[sheet_name]
+            
+            # 查找表头行范围
+            header_start, header_end = find_header_row(ws, candidates=None)
+            
+            if header_start == -1:
+                wb.close()
+                return sites
+            
+            # 扫描表头之前的行（行 1 到 header_start）
+            for row_idx in range(1, header_start + 1):
+                for col_idx in range(1, (ws.max_column or 0) + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    if cell.value is None:
+                        continue
+                    
+                    cell_str = str(cell.value).strip()
+                    if not cell_str:
+                        continue
+                    
+                    # 全文正则扫描
+                    pattern_results = self.pattern_registry.scan_text(cell_str)
+                    for matched_value, detected_type, rule_name in pattern_results:
+                        cell_coord = f"{get_column_letter(col_idx)}{row_idx}"
+                        site = self._create_site_from_pattern(
+                            sheet_name=sheet_name,
+                            cell_coord=cell_coord,
+                            value=matched_value,
+                            detected_type=detected_type,
+                        )
+                        if site:
+                            sites.append(site)
+            
+            # 扫描数据之后的行（从 ws.max_row 开始向下，但通常从 header_end + 数据行数后开始）
+            # 这里我们扫描所有表头之后的非数据行
+            # 简化处理：扫描表头之后的所有行，但只处理 A 列（通常是注释列）
+            max_row = ws.max_row or 0
+            for row_idx in range(header_end + 1, max_row + 1):
+                # 检查这行是否在数据区域（通过检查 B 列是否有数值）
+                data_cell = ws.cell(row=row_idx, column=2)
+                if data_cell.value is not None:
+                    # 这是数据行，跳过（由 _apply_column_rules 处理）
+                    continue
+                
+                # 这是非数据行（可能是注释行），扫描 A 列
+                cell = ws.cell(row=row_idx, column=1)
+                if cell.value is None:
+                    continue
+                
+                cell_str = str(cell.value).strip()
+                if not cell_str:
+                    continue
+                
+                # 全文正则扫描
+                pattern_results = self.pattern_registry.scan_text(cell_str)
+                for matched_value, detected_type, rule_name in pattern_results:
+                    cell_coord = f"A{row_idx}"
+                    site = self._create_site_from_pattern(
+                        sheet_name=sheet_name,
+                        cell_coord=cell_coord,
+                        value=matched_value,
+                        detected_type=detected_type,
+                    )
+                    if site:
+                        sites.append(site)
+            
+            wb.close()
+            
+        except Exception as e:
+            logger.error(f"扫描工作表 '{sheet_name}' 额外文本失败: {e}")
+        
         return sites
 
     def _read_data_with_multi_header(
