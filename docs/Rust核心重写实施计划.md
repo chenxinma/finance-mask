@@ -366,7 +366,7 @@ Expected: 编译错误（models 未定义）
 移植要点：
 - patterns.json 的 9 条规则中含 `(?!%)`，全部用 `fancy_regex::Regex::new`，编译失败时报规则名（Python `re` 与 fancy-regex 语法在此规则集上等价，无需改写）。
 - `config.rs`：`include_str!("../../config/pattern_rules.json")` / `column_rules.json` 内嵌，`from_path` 支持覆盖；JSON schema 与 Python 侧 `type_map` 一致（amount/entity/person/account）。
-- column_matcher 的三种匹配：Exact（字符串相等）、Regex（fancy-regex is_match）、Position（列序号，规则 pattern 解析为 usize）。
+- column_matcher 的匹配行为以 Python 为准（仅两种）：Exact（字符串相等）、Regex（fancy-regex is_match）。MatchType::Position 枚举值保留（serde 反序列化兼容，规则可携带 position）但不参与匹配——Python 从未实现位置匹配（仅加载不生效，无调用方），Rust 不超前实现（2026-09-06 裁决）。
 
 - [ ] **Step 1.4: patterns 测试**
 
