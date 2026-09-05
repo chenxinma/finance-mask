@@ -124,8 +124,15 @@ def gen(cmds, input, out):
     subprocess.run(cmds + ["generate", "-i", input, "-o", out], check=True,
                    capture_output=True)
 
+VOLATILE = {"generated_at"}  # 时间戳每次运行必不同，比对前归一化
+
 def semantic(path):
-    return yaml.safe_load(pathlib.Path(path).read_text(encoding="utf-8"))
+    d = yaml.safe_load(pathlib.Path(path).read_text(encoding="utf-8"))
+    md = d.get("metadata") if isinstance(d, dict) else None
+    if isinstance(md, dict):
+        for k in VOLATILE:
+            md[k] = "<TS>"   # 差分只比语义，时间戳归一化
+    return d
 
 def main():
     input = sys.argv[1]
@@ -423,7 +430,7 @@ pub fn classify_excel_sheets(xlsx_path: &str) -> Result<Vec<ClassifiedSheet>, Bo
 
 // header_finder.rs —— 对应 header_finder.py
 pub struct HeaderInfo { pub row: u32, pub headers: Vec<String> }
-pub fn find_header_row(rows: &[Vec<Option<String>>]) -> Option<HeaderInfo>;
+pub fn find_header_row(rows: &[Vec<calamine::Data>]) -> Option<HeaderInfo>;  // 保留类型信息（数值率检测需要）
 pub fn build_header_name(parts: &[Option<String>]) -> String; // 多行合并表头
 
 // excel_scanner.rs —— 对应 excel_scanner_v2.py 的 ExcelScannerV2
@@ -470,7 +477,9 @@ Run: `cargo test classify` → 绿后 commit `feat(rust): absorb layout-view as 
 
 ```bash
 python scripts/diff_test.py examples/仓库入库1.xlsx
-python scripts/diff_test.py examples/multi_header_demo.xlsx   # 若为目录则改脚本遍历
+python scripts/diff_test.py examples/sample_report.xlsx
+# 多行表头夹具：用 examples/multi_header_demo.py 的 create_multi_header_workbook 逻辑
+# 生成 multi_header.xlsx / single_header.xlsx，存 rust/tests/fixtures/ 并提交，同样跑差分
 ```
 
 Expected: `DIFF-OK`（generate 尚未接 CLI 时，可临时在 main.rs 加 hidden 子命令调 scan→序列化）
