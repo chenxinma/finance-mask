@@ -1,4 +1,5 @@
 // rust/src/lib.rs —— 模块声明随 Phase 逐步填充
+pub mod audit;
 pub mod classify;
 pub mod engine;
 pub mod column_matcher;
