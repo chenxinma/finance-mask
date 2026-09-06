@@ -9,5 +9,6 @@ pub mod header_finder;
 pub mod models;
 pub mod patterns;
 pub mod watermark;
+pub mod xmlsurgeon;
 
 pub const VERSION: &str = "0.1.0";
