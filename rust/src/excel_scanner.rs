@@ -719,7 +719,7 @@ impl ExcelScanner {
 }
 
 /// 敏感类型 → 默认脱敏动作（对应 Python `_get_default_action`）
-fn get_default_action(detected_type: &DetectedType) -> (ActionType, Option<serde_json::Value>) {
+pub fn get_default_action(detected_type: &DetectedType) -> (ActionType, Option<serde_json::Value>) {
     use serde_json::json;
     match detected_type {
         DetectedType::Amount => (

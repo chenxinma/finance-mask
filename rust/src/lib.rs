@@ -9,6 +9,7 @@ pub mod header_finder;
 pub mod models;
 pub mod patterns;
 pub mod ppt_reader;
+pub mod ppt_scanner;
 pub mod watermark;
 pub mod xmlsurgeon;
 
