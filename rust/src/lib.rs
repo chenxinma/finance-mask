@@ -1,4 +1,7 @@
-// rust/src/lib.rs —— 初始只有模块声明骨架，随 Phase 逐步填充
-// pub mod models;      // Phase 1
+// rust/src/lib.rs —— 模块声明随 Phase 逐步填充
+pub mod column_matcher;
+pub mod config;
+pub mod models;
+pub mod patterns;
 
 pub const VERSION: &str = "0.1.0";
