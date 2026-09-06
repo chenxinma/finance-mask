@@ -18,7 +18,7 @@ use zip::ZipArchive;
 use crate::classify::{ClassifiedSheet, SheetType, classify_excel_sheets};
 use crate::column_matcher::ColumnMatcher;
 use crate::header_finder::{MergeRect, build_header_name, find_header_row, get_vertical_value};
-use crate::models::{ColumnRule, MatchType};
+use crate::models::{ActionType, ColumnRule, DetectedType, DiscoveredBy, Location, MatchType, Site, SiteType};
 use crate::patterns::PatternRegistry;
 
 
@@ -494,6 +494,115 @@ impl ExcelScanner {
         }
         result
     }
+
+    /// 扫描 Form 类型工作表，返回匹配到的位点。
+    /// 对应 Python `_scan_form_sheet`。
+    ///
+    /// 按单元格逐行逐列扫描：
+    /// 1. 前 5 行中首次匹配列规则的单元格记录为表头列
+    /// 2. 后续行中，已知列做列规则匹配，其余做全文正则扫描
+    pub fn scan_form_sheet(&self, sheet: &SheetData) -> Vec<Site> {
+        let mut sites = Vec::new();
+        let mut header_row: HashMap<usize, String> = HashMap::new(); // 0-based col_idx → col_name
+        let mut header_found = false;
+
+        for (r_idx, row) in sheet.rows.iter().enumerate() {
+            let row_1based = (r_idx + 1) as u32; // 1-based for cell_coord / Location.cell
+            for (c_idx, cell) in row.iter().enumerate() {
+                if matches!(cell, Data::Empty) {
+                    continue;
+                }
+                let cell_str = crate::header_finder::cell_to_string(cell);
+                let cell_str = cell_str.trim();
+                if cell_str.is_empty() {
+                    continue;
+                }
+                let coord = cell_coord(r_idx as u32, c_idx as u32); // 0-based args, 1-based output
+
+                // --- 表头探测（前 5 行，首次命中即停） ---
+                if row_1based <= 5 && !header_found {
+                    if let Some(_rule) = self.matcher.match_header(cell_str) {
+                        header_row.insert(c_idx, cell_str.to_string());
+                        header_found = true;
+                        continue; // 表头单元格本身不产生 Site
+                    }
+                }
+
+                // --- 列规则匹配 ---
+                if let Some(col_name) = header_row.get(&c_idx) {
+                    if let Some(rule) = self.matcher.match_header(col_name) {
+                        let (action, params) = if rule.action != ActionType::Mask || rule.params.is_some() {
+                            (rule.action.clone(), rule.params.clone())
+                        } else {
+                            get_default_action(&rule.detected_type)
+                        };
+                        sites.push(Site {
+                            site_id: format!("sheet_{}_{}", sheet.name, coord),
+                            location: Location {
+                                site_type: SiteType::Excel,
+                                sheet: Some(sheet.name.clone()),
+                                cell: Some(coord),
+                                column: Some(col_name.clone()),
+                                ..Location::default()
+                            },
+                            original_value: cell_str.to_string(),
+                            detected_type: rule.detected_type.clone(),
+                            discovered_by: DiscoveredBy::ColumnRule,
+                            enabled: true,
+                            action,
+                            params,
+                            redacted_value: None,
+                        });
+                        continue;
+                    }
+                }
+
+                // --- 全文正则扫描（兜底） ---
+                let hits = self.patterns.scan(cell_str);
+                for (rule, matched_text) in hits {
+                    let (action, params) = get_default_action(&rule.detected_type);
+                    sites.push(Site {
+                        site_id: format!("sheet_{}_{}", sheet.name, coord),
+                        location: Location {
+                            site_type: SiteType::Excel,
+                            sheet: Some(sheet.name.clone()),
+                            cell: Some(coord.clone()),
+                            ..Location::default()
+                        },
+                        original_value: matched_text,
+                        detected_type: rule.detected_type.clone(),
+                        discovered_by: DiscoveredBy::FulltextScan,
+                        enabled: true,
+                        action,
+                        params,
+                        redacted_value: None,
+                    });
+                }
+            }
+        }
+
+        sites
+    }
+}
+
+/// 敏感类型 → 默认脱敏动作（对应 Python `_get_default_action`）
+fn get_default_action(detected_type: &DetectedType) -> (ActionType, Option<serde_json::Value>) {
+    use serde_json::json;
+    match detected_type {
+        DetectedType::Amount => (
+            ActionType::Precision,
+            Some(json!({"unit": "million", "decimal_places": 2})),
+        ),
+        DetectedType::Entity => (
+            ActionType::Alias,
+            Some(json!({"prefix": "公司"})),
+        ),
+        DetectedType::Person => (ActionType::MaskName, None),
+        DetectedType::Account => (
+            ActionType::MaskAccount,
+            Some(json!({"keep_prefix": 3, "keep_suffix": 4})),
+        ),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -790,5 +899,102 @@ mod tests {
         // data1 有 Data 表 → map 可能非空也可能为空（取决于表头内容）
         // 至少不 panic
         let _ = result;
+    }
+
+    // -------------------------------------------------------------------
+    // scan_form_sheet 测试
+    // -------------------------------------------------------------------
+
+    /// 构建 Form 类型 SheetData（手动构造网格）
+    fn make_form_sheet(name: &str, rows: Vec<Vec<Data>>) -> SheetData {
+        let max_col = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        SheetData {
+            name: name.to_string(),
+            sheet_type: SheetType::Form,
+            rows,
+            merged: vec![],
+            header_start: None,
+            header_end: None,
+            max_col,
+        }
+    }
+
+    #[test]
+    fn scan_form_sheet_basic() {
+        // key-value 表单布局：row0=公司名称+阿里巴巴，row1=金额+1,234,567.89 元
+        let sheet = make_form_sheet(
+            "表单",
+            vec![
+                vec![
+                    Data::String("公司名称".into()),
+                    Data::String("阿里巴巴集团".into()),
+                ],
+                vec![
+                    Data::String("金额".into()),
+                    Data::String("1,234,567.89 元".into()),
+                ],
+            ],
+        );
+
+        // 空匹配器（无列规则）→ 所有命中来自全文扫描
+        let scanner = make_scanner(vec![]);
+        let sites = scanner.scan_form_sheet(&sheet);
+
+        // 金额单元格应被全文扫描命中为 Amount
+        let amount_site = sites.iter().find(|s| s.detected_type == DetectedType::Amount);
+        assert!(
+            amount_site.is_some(),
+            "should detect amount in '1,234,567.89 元', got: {:?}",
+            sites
+        );
+        let site = amount_site.unwrap();
+        assert_eq!(site.discovered_by, DiscoveredBy::FulltextScan);
+        assert_eq!(site.location.cell.as_deref(), Some("B2"));
+        assert_eq!(site.location.sheet.as_deref(), Some("表单"));
+    }
+
+    #[test]
+    fn scan_form_sheet_header_detection() {
+        // 表头在 row0 col0：“公司名称” 匹配列规则
+        // row1 col0 的值 “百度在线” 应走 ColumnRule 路径
+        let sheet = make_form_sheet(
+            "公司表",
+            vec![
+                vec![
+                    Data::String("公司名称".into()),
+                    Data::String("备注".into()),
+                ],
+                vec![
+                    Data::String("百度在线网络技术有限公司".into()),
+                    Data::String("普通备注".into()),
+                ],
+            ],
+        );
+
+        // 构建匹配 “公司名称” 的列规则
+        let scanner = make_scanner(vec![ColumnRule {
+            match_type: MatchType::Exact,
+            pattern: "公司名称".to_string(),
+            action: ActionType::Alias,
+            params: Some(serde_json::json!({"prefix": "公司"})),
+            detected_type: DetectedType::Entity,
+            priority: 0,
+        }]);
+
+        let sites = scanner.scan_form_sheet(&sheet);
+
+        // row1 col0 应产生 ColumnRule 位点（detected_type=Entity）
+        let entity_site = sites
+            .iter()
+            .find(|s| s.discovered_by == DiscoveredBy::ColumnRule && s.detected_type == DetectedType::Entity);
+        assert!(
+            entity_site.is_some(),
+            "should have ColumnRule entity site, got: {:?}",
+            sites
+        );
+        let site = entity_site.unwrap();
+        assert_eq!(site.location.cell.as_deref(), Some("A2"));
+        assert_eq!(site.location.column.as_deref(), Some("公司名称"));
+        assert_eq!(site.action, ActionType::Alias);
     }
 }
