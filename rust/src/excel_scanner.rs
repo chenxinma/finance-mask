@@ -17,7 +17,7 @@ use zip::ZipArchive;
 
 use crate::classify::{ClassifiedSheet, SheetType, classify_excel_sheets};
 use crate::column_matcher::ColumnMatcher;
-use crate::header_finder::{MergeRect, build_header_name, find_header_row, get_vertical_value};
+use crate::header_finder::{MergeRect, build_header_name, cell_to_string, find_header_row, get_vertical_value};
 use crate::models::{ActionType, ColumnRule, DetectedType, DiscoveredBy, Location, MatchType, Site, SiteType};
 use crate::patterns::PatternRegistry;
 
@@ -583,6 +583,139 @@ impl ExcelScanner {
 
         sites
     }
+
+    /// 扫描表头之前和数据之后的文本内容。
+    /// 对应 Python `_scan_extra_text`。
+    ///
+    /// 对于 Data 类型表格，表头之前（如公司名称、表格标题）和
+    /// 数据之后（如注释信息）的文本也需要进行敏感信息识别。
+    pub fn scan_extra_text(
+        &self,
+        sheet: &SheetData,
+        _column_rules: &[ColumnRule],
+    ) -> Vec<Site> {
+        let mut sites = Vec::new();
+
+        // 无表头 → 无法确定 pre/post 区域
+        let header_start = match sheet.header_start {
+            Some(h) => h as usize,
+            None => return sites,
+        };
+        let header_end = sheet.header_end.unwrap_or(header_start as u32) as usize;
+
+        // --- 表头之前的行（rows 0..header_start） ---
+        for r in 0..header_start {
+            let row = match sheet.rows.get(r) {
+                Some(row) => row,
+                None => continue,
+            };
+            for (c, cell) in row.iter().enumerate() {
+                let s = cell_to_string(cell);
+                let s = s.trim();
+                if s.is_empty() {
+                    continue;
+                }
+                let coord = cell_coord(r as u32, c as u32);
+                for (rule, matched_text) in self.patterns.scan(s) {
+                    let (action, params) = get_default_action(&rule.detected_type);
+                    sites.push(Site {
+                        site_id: format!("sheet_{}_{}", sheet.name, coord),
+                        location: Location {
+                            site_type: SiteType::Excel,
+                            sheet: Some(sheet.name.clone()),
+                            cell: Some(coord.clone()),
+                            ..Location::default()
+                        },
+                        original_value: matched_text,
+                        detected_type: rule.detected_type.clone(),
+                        discovered_by: DiscoveredBy::FulltextScan,
+                        enabled: true,
+                        action,
+                        params,
+                        redacted_value: None,
+                    });
+                }
+            }
+        }
+
+        // --- 数据之后的行（rows header_end+1..sheet.rows.len()） ---
+        for r in (header_end + 1)..sheet.rows.len() {
+            let row = match sheet.rows.get(r) {
+                Some(row) => row,
+                None => continue,
+            };
+
+            // 检查 B 列（index 1）是否有值 → 有值说明是数据行，跳过
+            let b_has_value = row
+                .get(1)
+                .map(|c| !matches!(c, Data::Empty))
+                .unwrap_or(false);
+            if b_has_value {
+                continue;
+            }
+
+            // B 列为空 → 扫描 A 列（index 0）
+            if let Some(cell) = row.first() {
+                let s = cell_to_string(cell);
+                let s = s.trim();
+                if s.is_empty() {
+                    continue;
+                }
+                let coord = cell_coord(r as u32, 0);
+                for (rule, matched_text) in self.patterns.scan(s) {
+                    let (action, params) = get_default_action(&rule.detected_type);
+                    sites.push(Site {
+                        site_id: format!("sheet_{}_{}", sheet.name, coord),
+                        location: Location {
+                            site_type: SiteType::Excel,
+                            sheet: Some(sheet.name.clone()),
+                            cell: Some(coord.clone()),
+                            ..Location::default()
+                        },
+                        original_value: matched_text,
+                        detected_type: rule.detected_type.clone(),
+                        discovered_by: DiscoveredBy::FulltextScan,
+                        enabled: true,
+                        action,
+                        params,
+                        redacted_value: None,
+                    });
+                }
+            }
+        }
+
+        sites
+    }
+
+    /// 扫描整个工作簿，返回所有匹配到的位点。
+    /// 对应 Python `scan`。
+    pub fn scan(&self, sheets: &[SheetData]) -> Vec<Site> {
+        let mut sites = Vec::new();
+
+        for sheet in sheets {
+            if sheet.sheet_type == SheetType::Data {
+                if let Some(rules) = self.scan_data_sheet(sheet) {
+                    if !rules.is_empty() {
+                        // 有列规则：仅采集 extra text 位点
+                        // （_apply_column_rules 在后续任务实现）
+                        let extra = self.scan_extra_text(sheet, &rules);
+                        sites.extend(extra);
+                    } else {
+                        // 无列规则匹配 → 回退到 Form 扫描
+                        sites.extend(self.scan_form_sheet(sheet));
+                    }
+                } else {
+                    // 无表头 → 回退到 Form 扫描
+                    sites.extend(self.scan_form_sheet(sheet));
+                }
+            } else {
+                // Form / Unknown 类型
+                sites.extend(self.scan_form_sheet(sheet));
+            }
+        }
+
+        sites
+    }
 }
 
 /// 敏感类型 → 默认脱敏动作（对应 Python `_get_default_action`）
@@ -996,5 +1129,46 @@ mod tests {
         assert_eq!(site.location.cell.as_deref(), Some("A2"));
         assert_eq!(site.location.column.as_deref(), Some("公司名称"));
         assert_eq!(site.action, ActionType::Alias);
+    }
+
+    // -------------------------------------------------------------------
+    // scan_extra_text 测试
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn scan_extra_text_finds_pattern_above_header() {
+        // 构造一个 Data 表：row0=标题 "天齐锂业股份有限公司"，row1=表头，row2=数据
+        // scan_extra_text 应在 row0 发现实体模式
+        let sheet = make_data_sheet(
+            "测试表",
+            vec![
+                // row 0: 标题行（header 之前）
+                vec![Data::String("天齐锂业股份有限公司".into())],
+                // row 1: 表头
+                vec![
+                    Data::String("公司名称".into()),
+                    Data::String("金额".into()),
+                ],
+                // row 2: 数据行（B 列有值 → 跳过）
+                vec![
+                    Data::String("百度在线".into()),
+                    Data::Float(1234.5),
+                ],
+            ],
+            1, // header_start
+            1, // header_end
+        );
+
+        let scanner = make_scanner(vec![]);
+        let sites = scanner.scan_extra_text(&sheet, &[]);
+
+        // 应在 A1（row0 col0）发现 Entity 位点
+        assert_eq!(sites.len(), 1, "expected 1 site from title row, got: {:?}", sites);
+        let site = &sites[0];
+        assert_eq!(site.detected_type, DetectedType::Entity);
+        assert_eq!(site.discovered_by, DiscoveredBy::FulltextScan);
+        assert_eq!(site.location.cell.as_deref(), Some("A1"));
+        assert_eq!(site.location.sheet.as_deref(), Some("测试表"));
+        assert!(site.location.column.is_none(), "fulltext scan should have no column");
     }
 }
