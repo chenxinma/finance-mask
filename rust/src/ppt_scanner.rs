@@ -1,7 +1,9 @@
 //! PPT 扫描器 —— 移植自 src/finance_mask/scanner/ppt_scanner.py。
 //!
-//! 本任务（5-b）覆盖文本框与备注扫描；表格扫描（`_scan_table`）在后续任务 5-c 实现。
+//! 任务 5-b 覆盖文本框与备注扫描；任务 5-c 补齐表格扫描（`_scan_table`）。
 //! 输入是 `crate::ppt_reader` 解析出的结构化 `Vec<PptSlide>`，而非原始 .pptx 路径。
+
+use std::collections::HashMap;
 
 use fancy_regex::Regex;
 
@@ -9,7 +11,7 @@ use crate::column_matcher::ColumnMatcher;
 use crate::excel_scanner::get_default_action;
 use crate::models::{ActionType, DetectedType, DiscoveredBy, Location, Site, SiteType};
 use crate::patterns::PatternRegistry;
-use crate::ppt_reader::{PptSlide, ShapeKind};
+use crate::ppt_reader::{PptShape, PptSlide, ShapeKind};
 
 /// PPT 文件扫描器（对应 Python PPTScanner）。
 pub struct PptScanner {
@@ -25,38 +27,42 @@ impl PptScanner {
     /// 扫描解析出的幻灯片，返回所有检测到的位点。
     ///
     /// 对应 Python `scan` + `_scan_slide` + `_scan_text_frame` + `_scan_notes`
-    /// （本任务只覆盖 TextBox 与 notes；Table 在 5-c）。
+    /// + `_scan_table`（TextBox / Table / notes 均已覆盖）。
     pub fn scan(&self, slides: &[PptSlide]) -> Vec<Site> {
         let mut sites = Vec::new();
 
         for slide in slides {
             let slide_idx = slide.slide_idx as u32;
 
-            // --- 文本框：全文正则扫描 ---
+            // --- 形状扫描：文本框（全文正则）与表格（列头 + 全文） ---
             for shape in &slide.shapes {
-                if shape.kind != ShapeKind::TextBox {
-                    continue;
-                }
-                for paragraph in &shape.paragraphs {
-                    let full_text = paragraph.trim();
-                    if full_text.is_empty() {
-                        continue;
-                    }
+                match shape.kind {
+                    ShapeKind::TextBox => {
+                        for paragraph in &shape.paragraphs {
+                            let full_text = paragraph.trim();
+                            if full_text.is_empty() {
+                                continue;
+                            }
 
-                    for (rule, matched_text) in self.patterns.scan(full_text) {
-                        let (action, params) = get_default_action(&rule.detected_type);
-                        let site_id = format!("slide_{}_{}", slide.slide_idx, shape.id);
-                        sites.push(make_site(
-                            site_id,
-                            slide_idx,
-                            shape.name.clone(),
-                            None,
-                            matched_text,
-                            rule.detected_type.clone(),
-                            DiscoveredBy::FulltextScan,
-                            action,
-                            params,
-                        ));
+                            for (rule, matched_text) in self.patterns.scan(full_text) {
+                                let (action, params) = get_default_action(&rule.detected_type);
+                                let site_id = format!("slide_{}_{}", slide.slide_idx, shape.id);
+                                sites.push(make_site(
+                                    site_id,
+                                    slide_idx,
+                                    shape.name.clone(),
+                                    None,
+                                    matched_text,
+                                    rule.detected_type.clone(),
+                                    DiscoveredBy::FulltextScan,
+                                    action,
+                                    params,
+                                ));
+                            }
+                        }
+                    }
+                    ShapeKind::Table => {
+                        self.scan_table(&mut sites, slide_idx, shape);
                     }
                 }
             }
@@ -122,6 +128,82 @@ impl PptScanner {
         }
 
         sites
+    }
+
+    /// 扫描单个表格形状（对应 Python `_scan_table`）。
+    ///
+    /// 第 0 行作为表头：能匹配列头规则的列进入 `header_map`；
+    /// 数据行单元格优先走列头规则（ColumnRule），否则走全文扫描（FulltextScan）。
+    fn scan_table(&self, sites: &mut Vec<Site>, slide_idx: u32, shape: &PptShape) {
+        if shape.table_rows.is_empty() {
+            return;
+        }
+
+        // 识别表头（第一行 = 第 0 行）
+        let mut header_map: HashMap<usize, String> = HashMap::new();
+        for (col_idx, cell_text) in shape.table_rows[0].iter().enumerate() {
+            let cell_text = cell_text.trim();
+            if cell_text.is_empty() {
+                continue;
+            }
+            if self.matcher.match_header(cell_text).is_some() {
+                header_map.insert(col_idx, cell_text.to_string());
+            }
+        }
+
+        // 扫描数据行（跳过表头行）
+        for (row_idx, row) in shape.table_rows.iter().enumerate() {
+            if row_idx == 0 {
+                continue;
+            }
+
+            for (col_idx, cell_text) in row.iter().enumerate() {
+                let cell_text = cell_text.trim();
+                if cell_text.is_empty() {
+                    continue;
+                }
+
+                let table_location = format!("R{}C{}", row_idx + 1, col_idx + 1);
+
+                // 列头定位扫描（命中后不再做全文扫描）
+                if let Some(header_name) = header_map.get(&col_idx) {
+                    if let Some(rule) = self.matcher.match_header(header_name) {
+                        let site_id =
+                            format!("slide_{}_{}_{}", slide_idx, shape.id, table_location);
+                        sites.push(make_site(
+                            site_id,
+                            slide_idx,
+                            shape.name.clone(),
+                            Some(table_location.clone()),
+                            cell_text.to_string(),
+                            rule.detected_type.clone(),
+                            DiscoveredBy::ColumnRule,
+                            rule.action.clone(),
+                            rule.params.clone(),
+                        ));
+                        continue;
+                    }
+                }
+
+                // 全文正则扫描（兜底）
+                for (rule, matched_text) in self.patterns.scan(cell_text) {
+                    let (action, params) = get_default_action(&rule.detected_type);
+                    let site_id =
+                        format!("slide_{}_{}_{}", slide_idx, shape.id, table_location);
+                    sites.push(make_site(
+                        site_id,
+                        slide_idx,
+                        shape.name.clone(),
+                        Some(table_location.clone()),
+                        matched_text,
+                        rule.detected_type.clone(),
+                        DiscoveredBy::FulltextScan,
+                        action,
+                        params,
+                    ));
+                }
+            }
+        }
     }
 }
 
@@ -236,6 +318,143 @@ mod tests {
             paragraphs: paragraphs.into_iter().map(String::from).collect(),
             table_rows: vec![],
         }
+    }
+
+    fn make_table(id: &str, name: &str, rows: Vec<Vec<&str>>) -> PptShape {
+        PptShape {
+            id: id.to_string(),
+            name: name.to_string(),
+            kind: ShapeKind::Table,
+            paragraphs: vec![],
+            table_rows: rows
+                .into_iter()
+                .map(|row| row.into_iter().map(String::from).collect())
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn table_scan_column_rule() {
+        // 表头第 0 行：联系人 / 账号；数据行：张三 / 银行卡号。
+        // "联系人" 命中列头规则 → 第 2 行第 1 列走 ColumnRule。
+        let slide = make_slide(
+            1,
+            vec![make_table(
+                "3",
+                "Table 1",
+                vec![
+                    vec!["联系人", "账号"],
+                    vec!["张三", "6222021234567890"],
+                ],
+            )],
+            vec![],
+        );
+
+        let scanner = make_scanner(vec![ColumnRule {
+            match_type: MatchType::Regex,
+            pattern: "联系人".to_string(),
+            action: ActionType::MaskName,
+            params: None,
+            detected_type: DetectedType::Person,
+            priority: 0,
+        }]);
+
+        let sites = scanner.scan(&[slide]);
+
+        let column_site = sites.iter().find(|s| {
+            s.discovered_by == DiscoveredBy::ColumnRule
+                && s.detected_type == DetectedType::Person
+        });
+        assert!(
+            column_site.is_some(),
+            "should have a ColumnRule person site from table, got: {:?}",
+            sites
+        );
+
+        let site = column_site.unwrap();
+        assert_eq!(site.original_value, "张三");
+        assert_eq!(site.action, ActionType::MaskName);
+        assert_eq!(site.location.shape_id.as_deref(), Some("Table 1"));
+        assert_eq!(site.location.table_location.as_deref(), Some("R2C1"));
+        assert_eq!(site.site_id, "slide_1_3_R2C1");
+    }
+
+    #[test]
+    fn table_scan_fulltext_fallback() {
+        // 表头无列头规则命中 → 数据行全部走全文扫描。
+        let slide = make_slide(
+            1,
+            vec![make_table(
+                "3",
+                "Table 1",
+                vec![
+                    vec!["项目", "金额"],
+                    vec!["测试", "1,234,567.89 元"],
+                ],
+            )],
+            vec![],
+        );
+
+        let scanner = make_scanner(vec![]);
+        let sites = scanner.scan(&[slide]);
+
+        let amount_site = sites.iter().find(|s| {
+            s.detected_type == DetectedType::Amount
+                && s.discovered_by == DiscoveredBy::FulltextScan
+        });
+        assert!(
+            amount_site.is_some(),
+            "should detect amount via fulltext fallback in table, got: {:?}",
+            sites
+        );
+
+        let site = amount_site.unwrap();
+        assert_eq!(site.location.table_location.as_deref(), Some("R2C2"));
+        assert!(site.original_value.contains("1,234,567.89"));
+    }
+
+    #[test]
+    fn table_scan_skips_header_row() {
+        let slide = make_slide(
+            1,
+            vec![make_table(
+                "3",
+                "Table 1",
+                vec![
+                    vec!["联系人", "账号"],
+                    vec!["张三", "6222021234567890"],
+                ],
+            )],
+            vec![],
+        );
+
+        let scanner = make_scanner(vec![ColumnRule {
+            match_type: MatchType::Regex,
+            pattern: "联系人".to_string(),
+            action: ActionType::MaskName,
+            params: None,
+            detected_type: DetectedType::Person,
+            priority: 0,
+        }]);
+
+        let sites = scanner.scan(&[slide]);
+
+        // 数据行应产生位点，但表头行（R1C*）不产生任何位点。
+        assert!(
+            !sites.is_empty(),
+            "data row should produce sites, got: {:?}",
+            sites
+        );
+        assert!(
+            sites.iter().all(|s| !s
+                .location
+                .table_location
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("R1")),
+            "header row cells should not produce sites, got: {:?}",
+            sites
+        );
     }
 
     #[test]
