@@ -8,6 +8,7 @@ pub mod excel_scanner;
 pub mod header_finder;
 pub mod models;
 pub mod patterns;
+pub mod ppt_reader;
 pub mod watermark;
 pub mod xmlsurgeon;
 
