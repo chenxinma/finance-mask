@@ -16,7 +16,10 @@ use quick_xml::Reader as XmlReader;
 use zip::ZipArchive;
 
 use crate::classify::{ClassifiedSheet, SheetType, classify_excel_sheets};
-use crate::header_finder::{MergeRect, find_header_row};
+use crate::column_matcher::ColumnMatcher;
+use crate::header_finder::{MergeRect, build_header_name, find_header_row, get_vertical_value};
+use crate::models::{ColumnRule, MatchType};
+use crate::patterns::PatternRegistry;
 
 
 // ---------------------------------------------------------------------------
@@ -399,12 +402,108 @@ pub fn row_non_empty_strings(row: &[Data]) -> Vec<String> {
 }
 
 // ---------------------------------------------------------------------------
+// ExcelScanner：列规则扫描器（对应 Python ExcelScannerV2 的扫描逻辑）
+// ---------------------------------------------------------------------------
+
+pub struct ExcelScanner {
+    matcher: ColumnMatcher,
+    patterns: PatternRegistry,
+}
+
+impl ExcelScanner {
+    pub fn new(matcher: ColumnMatcher, patterns: PatternRegistry) -> Self {
+        Self { matcher, patterns }
+    }
+
+    /// 扫描 Data 类型工作表，返回匹配到的列规则。
+    /// 对应 Python `_scan_data_sheet`。
+    ///
+    /// - `header_start == None` → 无表头，返回 `None`
+    /// - 有表头但无列匹配 → 返回 `Some(vec![])`
+    pub fn scan_data_sheet(&self, sheet: &SheetData) -> Option<Vec<ColumnRule>> {
+        let header_start = sheet.header_start?;
+        let header_end = sheet.header_end.unwrap_or(header_start);
+
+        // 构建每列的表头名称（可能跨多行）
+        let mut header_names: Vec<String> = Vec::with_capacity(sheet.max_col);
+        for col in 0..sheet.max_col {
+            let parts: Vec<Option<String>> = (header_start..=header_end)
+                .map(|row| {
+                    let val =
+                        get_vertical_value(&sheet.rows, &sheet.merged, row, col as u32);
+                    if val.trim().is_empty() {
+                        None
+                    } else {
+                        Some(val)
+                    }
+                })
+                .collect();
+            header_names.push(build_header_name(&parts));
+        }
+
+        // 去重列名：首次保留原名，后续 _1, _2, …（与 Python 一致）
+        let mut seen: HashMap<String, usize> = HashMap::new();
+        let mut deduped: Vec<String> = Vec::with_capacity(header_names.len());
+        for name in header_names {
+            let count = seen.entry(name.clone()).or_insert(0);
+            if *count == 0 {
+                deduped.push(name);
+            } else {
+                deduped.push(format!("{}_{}", name, count));
+            }
+            *count += 1;
+        }
+
+        // 逐列匹配规则
+        let mut column_rules: Vec<ColumnRule> = Vec::new();
+        for col_name in &deduped {
+            let col_name_str = col_name.trim();
+            if col_name_str.is_empty() {
+                continue;
+            }
+            if let Some(rule) = self.matcher.match_header(col_name_str) {
+                column_rules.push(ColumnRule {
+                    match_type: MatchType::Exact,
+                    pattern: col_name.clone(),
+                    action: rule.action.clone(),
+                    params: rule.params.clone(),
+                    detected_type: rule.detected_type.clone(),
+                    priority: rule.priority,
+                });
+            }
+        }
+
+        Some(column_rules)
+    }
+
+    /// 收集所有 Data 类型工作表的列规则（`sheet.name → rules`）。
+    /// 对应 Python `get_column_rules`。
+    pub fn get_column_rules(
+        &self,
+        sheets: &[SheetData],
+    ) -> HashMap<String, Vec<ColumnRule>> {
+        let mut result = HashMap::new();
+        for sheet in sheets {
+            if sheet.sheet_type == SheetType::Data {
+                if let Some(rules) = self.scan_data_sheet(sheet) {
+                    if !rules.is_empty() {
+                        result.insert(sheet.name.clone(), rules);
+                    }
+                }
+            }
+        }
+        result
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 测试
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{ActionType, DetectedType};
 
     #[test]
     fn col_letter_basic() {
@@ -464,5 +563,232 @@ mod tests {
             "data1 should have Data sheets: {:?}",
             sheets.iter().map(|s| (&s.name, &s.sheet_type)).collect::<Vec<_>>()
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // ExcelScanner 测试
+    // -----------------------------------------------------------------------
+
+    /// 构建简单的 Data SheetData（手动构造网格）
+    fn make_data_sheet(
+        name: &str,
+        rows: Vec<Vec<Data>>,
+        header_start: u32,
+        header_end: u32,
+    ) -> SheetData {
+        let max_col = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        SheetData {
+            name: name.to_string(),
+            sheet_type: SheetType::Data,
+            rows,
+            merged: vec![],
+            header_start: Some(header_start),
+            header_end: Some(header_end),
+            max_col,
+        }
+    }
+
+    fn make_scanner(rules: Vec<ColumnRule>) -> ExcelScanner {
+        let matcher = ColumnMatcher::new(rules);
+        let patterns = PatternRegistry::builtin().unwrap();
+        ExcelScanner::new(matcher, patterns)
+    }
+
+    #[test]
+    fn scan_data_sheet_basic() {
+        // 一行表头 + 两行数据
+        let sheet = make_data_sheet(
+            "测试表",
+            vec![
+                vec![
+                    Data::String("姓名".into()),
+                    Data::String("金额".into()),
+                    Data::String("备注".into()),
+                ],
+                vec![
+                    Data::String("张三".into()),
+                    Data::Float(1234.5),
+                    Data::String("测试".into()),
+                ],
+                vec![
+                    Data::String("李四".into()),
+                    Data::Float(5678.9),
+                    Data::String("备注2".into()),
+                ],
+            ],
+            0,
+            0,
+        );
+
+        let scanner = make_scanner(vec![ColumnRule {
+            match_type: MatchType::Exact,
+            pattern: "金额".to_string(),
+            action: ActionType::Precision,
+            params: None,
+            detected_type: DetectedType::Amount,
+            priority: 0,
+        }]);
+
+        let result = scanner.scan_data_sheet(&sheet);
+        assert!(result.is_some());
+        let rules = result.unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].pattern, "金额");
+        assert_eq!(rules[0].match_type, MatchType::Exact);
+        assert_eq!(rules[0].action, ActionType::Precision);
+        assert_eq!(rules[0].detected_type, DetectedType::Amount);
+    }
+
+    #[test]
+    fn scan_data_sheet_no_header_returns_none() {
+        let sheet = SheetData {
+            name: "空表".to_string(),
+            sheet_type: SheetType::Data,
+            rows: vec![vec![Data::Float(1.0), Data::Float(2.0)]],
+            merged: vec![],
+            header_start: None,
+            header_end: None,
+            max_col: 2,
+        };
+
+        let scanner = make_scanner(vec![]);
+        assert!(scanner.scan_data_sheet(&sheet).is_none());
+    }
+
+    #[test]
+    fn scan_data_sheet_no_match_returns_empty() {
+        let sheet = make_data_sheet(
+            "测试表",
+            vec![
+                vec![Data::String("未知列".into()), Data::String("其他列".into())],
+                vec![Data::Float(1.0), Data::Float(2.0)],
+            ],
+            0,
+            0,
+        );
+
+        // 没有匹配规则
+        let scanner = make_scanner(vec![ColumnRule {
+            match_type: MatchType::Exact,
+            pattern: "金额".to_string(),
+            action: ActionType::Precision,
+            params: None,
+            detected_type: DetectedType::Amount,
+            priority: 0,
+        }]);
+
+        let result = scanner.scan_data_sheet(&sheet).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn scan_data_sheet_dedup_second_gets_suffix() {
+        // 两列同名 "金额"，第二列应变为 "金额_1"
+        let sheet = make_data_sheet(
+            "测试表",
+            vec![
+                vec![Data::String("金额".into()), Data::String("金额".into())],
+                vec![Data::Float(100.0), Data::Float(200.0)],
+            ],
+            0,
+            0,
+        );
+
+        // 两条规则分别匹配 "金额" 和 "金额_1"
+        let scanner = make_scanner(vec![
+            ColumnRule {
+                match_type: MatchType::Exact,
+                pattern: "金额".to_string(),
+                action: ActionType::Precision,
+                params: None,
+                detected_type: DetectedType::Amount,
+                priority: 0,
+            },
+            ColumnRule {
+                match_type: MatchType::Exact,
+                pattern: "金额_1".to_string(),
+                action: ActionType::Precision,
+                params: None,
+                detected_type: DetectedType::Amount,
+                priority: 0,
+            },
+        ]);
+
+        let result = scanner.scan_data_sheet(&sheet).unwrap();
+        assert_eq!(result.len(), 2, "should match both deduped names");
+        assert_eq!(result[0].pattern, "金额");
+        assert_eq!(result[1].pattern, "金额_1");
+    }
+
+    #[test]
+    fn scan_data_sheet_dedup_three_same_names() {
+        // 三列同名 "编号"，应变为 "编号", "编号_1", "编号_2"
+        let sheet = make_data_sheet(
+            "三列同名",
+            vec![
+                vec![
+                    Data::String("编号".into()),
+                    Data::String("编号".into()),
+                    Data::String("编号".into()),
+                ],
+                vec![Data::Float(1.0), Data::Float(2.0), Data::Float(3.0)],
+            ],
+            0,
+            0,
+        );
+
+        let scanner = make_scanner(vec![
+            ColumnRule {
+                match_type: MatchType::Exact,
+                pattern: "编号".to_string(),
+                action: ActionType::Mask,
+                params: None,
+                detected_type: DetectedType::Account,
+                priority: 0,
+            },
+            ColumnRule {
+                match_type: MatchType::Exact,
+                pattern: "编号_1".to_string(),
+                action: ActionType::Mask,
+                params: None,
+                detected_type: DetectedType::Account,
+                priority: 0,
+            },
+            ColumnRule {
+                match_type: MatchType::Exact,
+                pattern: "编号_2".to_string(),
+                action: ActionType::Mask,
+                params: None,
+                detected_type: DetectedType::Account,
+                priority: 0,
+            },
+        ]);
+
+        let result = scanner.scan_data_sheet(&sheet).unwrap();
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].pattern, "编号");
+        assert_eq!(result[1].pattern, "编号_1");
+        assert_eq!(result[2].pattern, "编号_2");
+    }
+
+    #[test]
+    fn get_column_rules_from_workbook() {
+        let crate_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let path = crate_dir.join("tests/fixtures/data1.xlsx");
+        let sheets = parse_workbook(&path).unwrap();
+
+        // 空匹配器 → 所有表都无匹配
+        let scanner_empty = make_scanner(vec![]);
+        let result = scanner_empty.get_column_rules(&sheets);
+        assert!(result.is_empty(), "empty matcher should match nothing");
+
+        // 用内置列规则加载的匹配器（config 内嵌列规则可能匹配 data1 的表头）
+        let builtin_rules =
+            crate::config::builtin_column_rules().unwrap();
+        let scanner = make_scanner(builtin_rules);
+        let result = scanner.get_column_rules(&sheets);
+        // data1 有 Data 表 → map 可能非空也可能为空（取决于表头内容）
+        // 至少不 panic
+        let _ = result;
     }
 }
