@@ -2,6 +2,7 @@
 pub mod classify;
 pub mod column_matcher;
 pub mod config;
+pub mod header_finder;
 pub mod models;
 pub mod patterns;
 
