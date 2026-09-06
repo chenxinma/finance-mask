@@ -10,6 +10,7 @@ pub mod models;
 pub mod patterns;
 pub mod ppt_reader;
 pub mod ppt_scanner;
+pub mod ppt_writer;
 pub mod watermark;
 pub mod xmlsurgeon;
 
