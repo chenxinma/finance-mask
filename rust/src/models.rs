@@ -62,12 +62,39 @@ pub enum MatchType {
 pub struct Location {
     #[serde(rename = "type")]
     pub site_type: SiteType,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cell: Option<String>, // "B5"
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub column: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub slide: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub shape_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub table_location: Option<String>, // "R2C3"
+}
+
+impl std::fmt::Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.site_type {
+            SiteType::Excel => {
+                write!(f, "[Excel] {}!{}",
+                    self.sheet.as_deref().unwrap_or(""),
+                    self.cell.as_deref().unwrap_or(""))
+            }
+            SiteType::Ppt => {
+                write!(f, "[PPT] 幻灯片{} 形状{}",
+                    self.slide.unwrap_or(0),
+                    self.shape_id.as_deref().unwrap_or(""))?;
+                if let Some(ref tl) = self.table_location {
+                    write!(f, " {}", tl)?;
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 /// 敏感信息位点（site.py Site）
@@ -92,6 +119,11 @@ fn default_true() -> bool {
 }
 
 /// 列头规则（strategy.py ColumnRule）
+///
+/// `priority` 仅用于内部排序（ColumnMatcher），不写入 YAML 策略文件
+/// （Python export_strategy 不导出 priority）。
+/// 注：不在 serde 属性上 skip_serializing，以保持 YAML 读写闭环测试兼容。
+/// generate 子命令的 YAML 输出通过 `build_yaml_value` 手动省略 priority。
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ColumnRule {
     pub match_type: MatchType,
