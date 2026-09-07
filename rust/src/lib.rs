@@ -12,6 +12,7 @@ pub mod ppt_reader;
 pub mod ppt_scanner;
 pub mod ppt_writer;
 pub mod watermark;
+pub mod yaml_io;
 pub mod xmlsurgeon;
 
 pub const VERSION: &str = "0.1.0";

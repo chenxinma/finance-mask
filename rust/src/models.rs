@@ -14,9 +14,10 @@ pub enum SiteType {
 }
 
 /// 敏感数据类型（site.py DetectedType）
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum DetectedType {
+    #[default]
     Amount,
     Entity,
     Person,
@@ -24,11 +25,12 @@ pub enum DetectedType {
 }
 
 /// 脱敏动作类型（site.py ActionType）
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ActionType {
     Precision,
     Perturb,
+    #[default]
     Mask,
     Alias,
     MaskName,
@@ -38,10 +40,11 @@ pub enum ActionType {
 }
 
 /// 发现方式（site.py DiscoveredBy）
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum DiscoveredBy {
     ColumnRule,
+    #[default]
     FulltextScan,
 }
 
@@ -49,9 +52,10 @@ pub enum DiscoveredBy {
 ///
 /// `Position` 在 Python 侧是死代码（仅加载不生效，无调用方），
 /// 此处仅为 serde/YAML 兼容保留，不参与匹配（2026-09-06 裁决）。
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchType {
+    #[default]
     Exact,
     Regex,
     Position,
@@ -100,13 +104,19 @@ impl std::fmt::Display for Location {
 /// 敏感信息位点（site.py Site）
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Site {
+    #[serde(default)]
     pub site_id: String,
+    #[serde(default)]
     pub location: Location,
+    #[serde(default)]
     pub original_value: String,
+    #[serde(default)]
     pub detected_type: DetectedType,
+    #[serde(default)]
     pub discovered_by: DiscoveredBy,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
     pub action: ActionType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<serde_json::Value>,
@@ -126,25 +136,32 @@ fn default_true() -> bool {
 /// generate 子命令的 YAML 输出通过 `build_yaml_value` 手动省略 priority。
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ColumnRule {
+    #[serde(default)]
     pub match_type: MatchType,
+    #[serde(default)]
     pub pattern: String,
+    #[serde(default)]
     pub action: ActionType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<serde_json::Value>,
+    #[serde(default)]
     pub detected_type: DetectedType,
     #[serde(default)]
     pub priority: i32,
 }
 
 /// 策略文件元数据（strategy.py Metadata）
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct Metadata {
     #[serde(default = "default_version")]
     pub version: String,
+    #[serde(default)]
     pub source_file: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_hash: Option<String>,
+    #[serde(default)]
     pub generated_at: String, // ISO 8601
+    #[serde(default)]
     pub total_sites: usize,
 }
 
@@ -155,11 +172,13 @@ fn default_version() -> String {
 /// 脱敏策略（strategy.py Strategy）
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Strategy {
+    #[serde(default)]
     pub metadata: Metadata,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub column_rules: Option<Vec<ColumnRule>>,
+    #[serde(default)]
     pub sites: Vec<Site>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub global_params: Option<serde_json::Value>,
 }
 
