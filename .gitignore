@@ -10,3 +10,8 @@ wheels/
 .venv
 
 examples/
+
+# SDD workspace + Rust
+.superpowers/
+.worktrees/
+rust/target/
