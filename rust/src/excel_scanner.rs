@@ -534,11 +534,8 @@ impl ExcelScanner {
                 // --- 列规则匹配 ---
                 if let Some(col_name) = header_row.get(&c_idx) {
                     if let Some(rule) = self.matcher.match_header(col_name) {
-                        let (action, params) = if rule.action != ActionType::Mask || rule.params.is_some() {
-                            (rule.action.clone(), rule.params.clone())
-                        } else {
-                            get_default_action(&rule.detected_type)
-                        };
+                        let action = rule.action.clone();
+                        let params = rule.params.clone();
                         sites.push(Site {
                             site_id: format!("sheet_{}_{}", sheet.name, coord),
                             location: Location {

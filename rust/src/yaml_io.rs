@@ -15,6 +15,7 @@ use crate::models::{ColumnRule, Site, Strategy};
 pub enum YamlError {
     Io(std::io::Error),
     Yaml(serde_yaml::Error),
+    Validation(String),
 }
 
 impl std::fmt::Display for YamlError {
@@ -22,6 +23,7 @@ impl std::fmt::Display for YamlError {
         match self {
             YamlError::Io(e) => write!(f, "IO error: {e}"),
             YamlError::Yaml(e) => write!(f, "YAML error: {e}"),
+            YamlError::Validation(msg) => write!(f, "校验失败: {msg}"),
         }
     }
 }
@@ -43,7 +45,13 @@ impl From<serde_yaml::Error> for YamlError {
 /// 加载 YAML 策略文件。
 pub fn load_strategy_yaml(path: &Path) -> Result<Strategy, YamlError> {
     let s = std::fs::read_to_string(path)?;
-    Ok(serde_yaml::from_str(&s)?)
+    let strategy: Strategy = serde_yaml::from_str(&s)?;
+    // I8: validate all site locations
+    for site in &strategy.sites {
+        crate::models::validate_location(&site.location)
+            .map_err(|e| YamlError::Validation(format!("位点 {}: {}", site.site_id, e)))?;
+    }
+    Ok(strategy)
 }
 
 /// 导出策略为 YAML 文件（含 original_value 行尾注释）。
@@ -375,5 +383,22 @@ sites:
         }
         let loaded = load_strategy_yaml(&golden).unwrap();
         assert!(!loaded.metadata.version.is_empty());
+    }
+
+    #[test]
+    fn load_invalid_location_fails() {
+        // Excel site missing sheet
+        let yaml = r#"
+sites:
+- site_id: s1
+  location: {type: excel, cell: A1}
+  original_value: test
+"#;
+        let tmp = tempfile::NamedTempFile::with_suffix(".yaml").unwrap();
+        std::fs::write(tmp.path(), yaml).unwrap();
+        let result = load_strategy_yaml(tmp.path());
+        assert!(result.is_err(), "should fail for missing sheet");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("sheet"), "error should mention sheet: {err}");
     }
 }

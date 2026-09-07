@@ -85,13 +85,8 @@ impl PptScanner {
                         if let Some(value) =
                             extract_value_from_text(full_text, &rule.detected_type)
                         {
-                            // 与 Task 3 一致：仅当 action == Mask 且无 params 时回退默认动作
-                            let (action, params) =
-                                if rule.action != ActionType::Mask || rule.params.is_some() {
-                                    (rule.action.clone(), rule.params.clone())
-                                } else {
-                                    get_default_action(&rule.detected_type)
-                                };
+                            let action = rule.action.clone();
+                            let params = rule.params.clone();
 
                             sites.push(make_site(
                                 site_id.clone(),

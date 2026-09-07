@@ -300,8 +300,9 @@ impl Executor {
                         rule.params.as_ref(),
                     ) {
                         Ok(redacted) => {
+                            // I6: site_id format matches Python: {sheet}_{cell}
                             let site_id =
-                                format!("sheet_{}_{}", sheet.name, cell_ref);
+                                format!("{}_{}", sheet.name, cell_ref);
                             audit.log_change(
                                 &site_id,
                                 serde_json::json!({
@@ -316,11 +317,21 @@ impl Executor {
                             );
                             if !dry_run {
                                 if let Some(ref mut s) = surgeon {
-                                    if s.set_cell_text(&sheet.name, &cell_ref, &redacted).is_ok() {
-                                        written.insert(
-                                            (sheet.name.clone(), cell_ref),
-                                            redacted,
-                                        );
+                                    // I7: don't swallow write-back errors
+                                    match s.set_cell_text(&sheet.name, &cell_ref, &redacted) {
+                                        Ok(()) => {
+                                            written.insert(
+                                                (sheet.name.clone(), cell_ref),
+                                                redacted,
+                                            );
+                                        }
+                                        Err(e) => {
+                                            report.errors += 1;
+                                            audit.log_error(
+                                                &site_id,
+                                                &format!("写回失败: {e}"),
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -420,6 +431,9 @@ impl Executor {
             if let Some(editor) = editor {
                 editor.save(output).map_err(ExecError::PptWriter)?;
             }
+            // I1: embed watermark into pptx
+            embed_watermark_pptx(output, &self.operator)
+                .map_err(ExecError::PptWriter)?;
             let output_hash = audit::compute_file_hash(output)
                 .map_err(ExecError::Audit)?;
             export_audit_log(&audit, input, output, Some(&output_hash))?;
@@ -496,7 +510,12 @@ pub fn redact_value(
     }
 }
 
-/// 简单确定性 seed（value 的 FNV-1a 哈希）
+/// 简单确定性 seed（value 的 FNV-1a 哈希）。
+///
+/// **有意偏差 vs Python**：Python 的 perturb 使用 `random.Random(value)` 生成
+/// 随机偏移，每次运行结果不同。Rust 使用 FNV-1a 哈希保证确定性——同一输入
+/// 永远产生同一扰动值，便于可重现构建和测试。审计日志中 perturb 行的
+/// `redacted` 值不可能与 Python 的随机结果匹配，这是设计决策而非 bug。
 fn simple_seed(s: &str) -> u64 {
     let mut hash: u64 = 0xcbf29ce484222325;
     for b in s.as_bytes() {
@@ -671,6 +690,79 @@ fn embed_watermark_xlsx(
         }
     }
     surgeon.save(output)?;
+    Ok(())
+}
+
+/// PPTX 水印嵌入：遍历每个 slide，找到第一个 <a:t> 文本追加零宽字符。
+/// 对应 Python WatermarkEncoder.embed_to_ppt。
+fn embed_watermark_pptx(
+    output: &Path,
+    operator: &str,
+) -> Result<(), crate::ppt_writer::PptError> {
+    use std::io::{Read, Write};
+    use zip::read::ZipArchive;
+    use zip::write::{SimpleFileOptions, ZipWriter};
+
+    let payload = format!(
+        "{}|{}|{}",
+        operator,
+        chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+        &audit::compute_file_hash(output)
+            .map(|h| h[..16.min(h.len())].to_string())
+            .unwrap_or_default()
+    );
+    let watermark = Watermark::encode(&payload);
+    if watermark.is_empty() {
+        return Ok(());
+    }
+
+    // Read all entries from the pptx zip
+    let file = std::fs::File::open(output)?;
+    let mut archive = ZipArchive::new(std::io::BufReader::new(file))?;
+
+    let mut entries: Vec<(String, Vec<u8>)> = Vec::new();
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        let name = entry.name().to_string();
+        let mut buf = Vec::new();
+        entry.read_to_end(&mut buf)?;
+        entries.push((name, buf));
+    }
+
+    // For each slide XML, find first <a:t> and append watermark
+    let options = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .compression_level(Some(6));
+
+    let out_file = std::fs::File::create(output)?;
+    let mut zip = ZipWriter::new(std::io::BufWriter::new(out_file));
+
+    let mut watermarked = false;
+    for (name, content) in &entries {
+        if name.starts_with("ppt/slides/slide") && name.ends_with(".xml") && !watermarked {
+            let xml = String::from_utf8_lossy(content);
+            if let Some(idx) = xml.find("<a:t>") {
+                let text_start = idx + 5;
+                if let Some(end_idx) = xml[text_start..].find("</a:t>") {
+                    let original_text = &xml[text_start..text_start + end_idx];
+                    let new_text = format!("{}{}", original_text, &watermark);
+                    let new_xml = format!("{}{}{}",
+                        &xml[..text_start],
+                        quick_xml::escape::escape(&new_text),
+                        &xml[text_start + end_idx..]
+                    );
+                    zip.start_file(name, options)?;
+                    zip.write_all(new_xml.as_bytes())?;
+                    watermarked = true;
+                    continue;
+                }
+            }
+        }
+        zip.start_file(name, options)?;
+        zip.write_all(content)?;
+    }
+
+    zip.finish()?;
     Ok(())
 }
 

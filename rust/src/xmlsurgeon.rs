@@ -210,11 +210,29 @@ impl XmlSurgeon {
                 }
             };
 
+            // C1 fix: numeric cell (CellType::None) writing non-numeric text
+            // must add t="str" so strict readers (openpyxl) accept it.
+            let needs_type_str = cell_type == CellType::None
+                && new_text.parse::<f64>().is_err();
+            let base_tag = if needs_type_str {
+                // <c r="B5" s="23"> or <c r="B5"/>
+                // → <c r="B5" s="23" t="str"> or <c r="B5" t="str"/>
+                let no_close = opening_tag.trim_end_matches('>').trim_end_matches('/').trim_end();
+                if is_self_closing {
+                    format!("{} t=\"str\"/>", no_close)
+                } else {
+                    format!("{} t=\"str\">", no_close)
+                }
+            } else {
+                opening_tag.to_string()
+            };
+
             // 构建替换：保留原始开标签（含全部属性），只替换 <v> 的内容。
             // 自闭合 cell（<c r="A1"/>）没有 <v>，插入 <v> 时保持无类型属性。
             let new_cell = if is_self_closing {
                 // <c r="A1" s="23"/> → <c r="A1" s="23"><v>new</v></c>
-                format!("{}<v>{}</v></c>", opening_tag.trim_end_matches('/'), escape_xml(&new_v_content))
+                let tag = base_tag.trim_end_matches('/').trim_end();
+                format!("{}<v>{}</v></c>", tag, escape_xml(&new_v_content))
             } else {
                 // <c r="A1" s="23" t="s"><v>old</v></c> → 保留开标签，只换 <v> 内容
                 // 找到 </c> 的位置，然后替换整个 cell 内容为 开标签 + <v>新内容</v> + </c>
@@ -246,7 +264,7 @@ impl XmlSurgeon {
                     format!("<v>{}</v>{}", escape_xml(&new_v_content), cell_body)
                 };
 
-                format!("{}{}</c>", opening_tag, new_body)
+                format!("{}{}</c>", base_tag, new_body)
             };
 
             // Replace the cell in the XML

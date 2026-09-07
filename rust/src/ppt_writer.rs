@@ -125,12 +125,22 @@ impl PptxEditor {
         let slide_entry =
             find_entry_idx(&self.entries, &slide_name).ok_or(PptError::SlideNotFound(slide_idx))?;
         let slide_xml = String::from_utf8(self.entries[slide_entry].1.clone())?;
-        self.entries[slide_entry].1 = replace_in_xml(&slide_xml, old, new).into_bytes();
+        // First try: single-run replacement
+        let mut result = replace_in_xml(&slide_xml, old, new);
+        // I5 fallback: if old spans multiple <a:t> runs, merge and replace
+        if result == slide_xml {
+            result = replace_cross_run(&slide_xml, old, new);
+        }
+        self.entries[slide_entry].1 = result.into_bytes();
 
         let notes_name = format!("ppt/notesSlides/notesSlide{}.xml", slide_idx);
         if let Some(notes_entry) = find_entry_idx(&self.entries, &notes_name) {
             let notes_xml = String::from_utf8(self.entries[notes_entry].1.clone())?;
-            self.entries[notes_entry].1 = replace_in_xml(&notes_xml, old, new).into_bytes();
+            let mut result = replace_in_xml(&notes_xml, old, new);
+            if result == notes_xml {
+                result = replace_cross_run(&notes_xml, old, new);
+            }
+            self.entries[notes_entry].1 = result.into_bytes();
         }
 
         Ok(())
@@ -245,6 +255,117 @@ fn replace_in_xml(xml: &str, old: &str, new: &str) -> String {
     out
 }
 
+/// I5 fallback: when `old` spans multiple `<a:t>` runs inside a `<a:p>`
+/// paragraph, concatenate all `<a:t>` text, check for match, and if found,
+/// merge all runs into one with the replacement applied.
+///
+/// Only replaces the FIRST occurrence across runs (matches `replace_in_xml`
+/// behavior of one replacement per call via executor).
+fn replace_cross_run(xml: &str, old: &str, new: &str) -> String {
+    if old.is_empty() {
+        return xml.to_string();
+    }
+
+    let bytes = xml.as_bytes();
+    let mut out = String::with_capacity(xml.len());
+    let mut cursor = 0;
+
+    loop {
+        // Find next <a:p> (not <a:para>, <a:pic>, etc.)
+        let Some(rel) = xml[cursor..].find("<a:p") else { break };
+        let p_start = cursor + rel;
+        let after_tag = p_start + 4;
+        if after_tag >= bytes.len() { break; }
+        let next = bytes[after_tag];
+        if next != b'>' && next != b' ' && next != b'\t' && next != b'\r' && next != b'\n' && next != b'/' {
+            cursor = after_tag;
+            continue;
+        }
+
+        // Find matching </a:p> (accounting for nesting)
+        let mut depth = 1u32;
+        let mut scan = after_tag;
+        let p_content_end = loop {
+            if let Some(r) = xml[scan..].find("</a:p>") {
+                let abs = scan + r;
+                depth -= 1;
+                if depth == 0 { break Some(abs); }
+                scan = abs + 6;
+            } else if let Some(r) = xml[scan..].find("<a:p") {
+                let abs = scan + r;
+                let a = abs + 4;
+                if a < bytes.len() {
+                    let c = bytes[a];
+                    if c == b'>' || c == b' ' || c == b'\t' || c == b'\r' || c == b'\n' || c == b'/' {
+                        depth += 1;
+                    }
+                }
+                scan = abs + 4;
+            } else {
+                break None;
+            }
+        };
+        let Some(content_end) = p_content_end else { break };
+        let p_full_end = content_end + "</a:p>".len();
+        let p_xml = &xml[p_start..p_full_end];
+
+        // Concatenate all <a:t> text content within this paragraph
+        let mut concat = String::new();
+        let mut pos = 0;
+        while pos < p_xml.len() {
+            if let Some(r) = p_xml[pos..].find("<a:t") {
+                let abs = pos + r;
+                let a = abs + 4;
+                if a >= p_xml.len() { break; }
+                let c = p_xml.as_bytes()[a];
+                let is_a_t = c == b'>' || c == b'/' || c == b' ' || c == b'\t' || c == b'\r' || c == b'\n';
+                if !is_a_t { pos = a; continue; }
+                if let Some(gt) = p_xml[abs..].find('>') {
+                    let open_end = abs + gt;
+                    if p_xml[abs..open_end].ends_with('/') {
+                        pos = open_end + 1;
+                        continue;
+                    }
+                    let text_start = open_end + 1;
+                    if let Some(cl) = p_xml[text_start..].find("</a:t>") {
+                        let text_end = text_start + cl;
+                        concat.push_str(&p_xml[text_start..text_end]);
+                        pos = text_end + 6;
+                        continue;
+                    }
+                }
+                break;
+            } else {
+                break;
+            }
+        }
+
+        // Copy everything before this paragraph
+        out.push_str(&xml[cursor..p_start]);
+
+        if concat.contains(old) {
+            // Found: merge all runs into one with replacement
+            let replaced = concat.replacen(old, new, 1);
+            let escaped = escape_xml_text(&replaced);
+            out.push_str(&format!("<a:p><a:r><a:t>{}</a:t></a:r></a:p>", escaped));
+        } else {
+            // No match — keep paragraph as-is
+            out.push_str(p_xml);
+        }
+        cursor = p_full_end;
+    }
+
+    out.push_str(&xml[cursor..]);
+    out
+}
+
+/// Minimal XML text escaping for values written into <a:t>.
+fn escape_xml_text(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -324,6 +445,35 @@ mod tests {
             text.push('\n');
         }
         text
+    }
+
+    #[test]
+    fn replace_cross_run_basic() {
+        // Text split across two <a:r> runs
+        let xml = r#"<a:txBody><a:p><a:r><a:t>天齐锂业</a:t></a:r><a:r><a:t>股份有限公司</a:t></a:r></a:p></a:txBody>"#;
+        let result = replace_in_xml(xml, "天齐锂业股份有限公司", "[公司A]");
+        // Single-run replacement won't find it
+        assert_eq!(result, xml, "single-run should not match cross-run text");
+
+        // Cross-run fallback should
+        let result = replace_cross_run(xml, "天齐锂业股份有限公司", "[公司A]");
+        assert!(result.contains("[公司A]"), "cross-run should replace: {}", result);
+        assert!(!result.contains("天齐锂业"), "original should be gone: {}", result);
+    }
+
+    #[test]
+    fn replace_cross_run_no_match() {
+        let xml = r#"<a:txBody><a:p><a:r><a:t>Hello</a:t></a:r></a:p></a:txBody>"#;
+        let result = replace_cross_run(xml, "Missing", "X");
+        assert_eq!(result, xml, "no match should return unchanged");
+    }
+
+    #[test]
+    fn replace_cross_run_single_run_still_works() {
+        // Even in cross-run mode, single-run text should still be found
+        let xml = r#"<a:txBody><a:p><a:r><a:t>Hello World</a:t></a:r></a:p></a:txBody>"#;
+        let result = replace_cross_run(xml, "Hello", "Bye");
+        assert!(result.contains("Bye World"), "single run via cross-run: {}", result);
     }
 
     #[test]

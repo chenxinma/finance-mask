@@ -268,3 +268,75 @@ fn debug_inspect_data1() {
 }
 
 use std::io::Read;
+
+/// C1: writing non-numeric text to a numeric cell must add t="str".
+#[test]
+fn numeric_cell_gets_type_str_on_text_write() {
+    let path = fixture("data1.xlsx");
+
+    // data1.xlsx sheet2 has <c r="A2" s="11"> (numeric, no t= attribute)
+    // Discover sheet2's name dynamically
+    let mut wb: calamine::Xlsx<_> = calamine::open_workbook(&path).unwrap();
+    let sheets_meta = wb.sheets_metadata().to_vec();
+    let sheet2_name = sheets_meta.iter()
+        .find(|m| m.visible == calamine::SheetVisible::Visible && m.name != sheets_meta[0].name)
+        .map(|m| m.name.clone())
+        .unwrap_or_else(|| sheets_meta.last().unwrap().name.clone());
+
+    let mut surgeon = XmlSurgeon::open(&path).unwrap();
+    // Write masked text to A2 (a numeric cell)
+    surgeon.set_cell_text(&sheet2_name, "A2", "1*,***,***.**").unwrap();
+
+    let tmp = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
+    surgeon.save(tmp.path()).unwrap();
+
+    // Verify: the raw XML for A2 must contain t="str"
+    let saved = XmlSurgeon::open(tmp.path()).unwrap();
+    let entries = saved.entries_snapshot();
+    // Find sheet2's XML path
+    let sheet_xml = entries.iter()
+        .find(|(n, _)| n.contains("sheet2"))
+        .map(|(_, c)| String::from_utf8_lossy(c).to_string())
+        .unwrap();
+    let idx = sheet_xml.find("<c r=\"A2\"").expect("A2 should exist");
+    let tag_end = sheet_xml[idx..].find('>').map(|p| idx + p).unwrap();
+    let cell_tag = &sheet_xml[idx..=tag_end];
+    assert!(cell_tag.contains("t=\"str\""),
+        "numeric cell with text must have t=\"str\", got tag: {}", cell_tag);
+
+    // Verify: calamine can read the file (strict reader validation)
+    let mut wb2: calamine::Xlsx<_> = calamine::open_workbook(tmp.path()).unwrap();
+    let _ = wb2.worksheet_range(&sheet2_name).unwrap();
+}
+
+/// C1: writing a number to a numeric cell must NOT add t="str".
+#[test]
+fn numeric_cell_keeps_no_type_on_number_write() {
+    let path = fixture("data1.xlsx");
+
+    let mut wb: calamine::Xlsx<_> = calamine::open_workbook(&path).unwrap();
+    let sheets_meta = wb.sheets_metadata().to_vec();
+    let sheet2_name = sheets_meta.iter()
+        .find(|m| m.visible == calamine::SheetVisible::Visible && m.name != sheets_meta[0].name)
+        .map(|m| m.name.clone())
+        .unwrap_or_else(|| sheets_meta.last().unwrap().name.clone());
+
+    let mut surgeon = XmlSurgeon::open(&path).unwrap();
+    surgeon.set_cell_text(&sheet2_name, "A2", "9999999").unwrap();
+
+    let tmp = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
+    surgeon.save(tmp.path()).unwrap();
+
+    // Verify: the cell tag must NOT have t="str"
+    let saved = XmlSurgeon::open(tmp.path()).unwrap();
+    let entries = saved.entries_snapshot();
+    let sheet_xml = entries.iter()
+        .find(|(n, _)| n.contains("sheet2"))
+        .map(|(_, c)| String::from_utf8_lossy(c).to_string())
+        .unwrap();
+    let idx = sheet_xml.find("<c r=\"A2\"").expect("A2 should exist");
+    let tag_end = sheet_xml[idx..].find('>').map(|p| idx + p).unwrap();
+    let cell_tag = &sheet_xml[idx..=tag_end];
+    assert!(!cell_tag.contains("t=\"str\""),
+        "numeric cell writing number must NOT have t=\"str\", got: {}", cell_tag);
+}
