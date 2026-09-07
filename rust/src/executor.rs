@@ -4,7 +4,7 @@
 //! 外科手术写回 → 水印嵌入 → 审计日志导出。
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::audit::{self, AuditLogger};
 use crate::engine::{mask_account, AmountRedactor, NameRedactor};
@@ -216,7 +216,7 @@ impl Executor {
             }
             let output_hash = audit::compute_file_hash(output)
                 .map_err(ExecError::Audit)?;
-            export_audit_log(&audit, output, Some(&output_hash))?;
+            export_audit_log(&audit, input, output, Some(&output_hash))?;
         }
 
         Ok(report)
@@ -301,7 +301,7 @@ impl Executor {
                     ) {
                         Ok(redacted) => {
                             let site_id =
-                                format!("{}_{}", sheet.name, cell_ref);
+                                format!("sheet_{}_{}", sheet.name, cell_ref);
                             audit.log_change(
                                 &site_id,
                                 serde_json::json!({
@@ -422,7 +422,7 @@ impl Executor {
             }
             let output_hash = audit::compute_file_hash(output)
                 .map_err(ExecError::Audit)?;
-            export_audit_log(&audit, output, Some(&output_hash))?;
+            export_audit_log(&audit, input, output, Some(&output_hash))?;
         }
 
         Ok(report)
@@ -612,13 +612,14 @@ fn parse_table_location(tl: &str) -> Option<(usize, usize)> {
     Some((r.parse().ok()?, c.parse().ok()?))
 }
 
-/// 导出审计日志：{output_stem}_日志.json（与 Python get_log_filename 一致）
+/// 导出审计日志：{input_stem}_日志.json（与 Python get_log_filename 一致）
 fn export_audit_log(
     audit: &AuditLogger,
+    input: &Path,
     output: &Path,
     file_hash: Option<&str>,
 ) -> Result<(), ExecError> {
-    let stem = output.file_stem().and_then(|s| s.to_str()).unwrap_or("output");
+    let stem = input.file_stem().and_then(|s| s.to_str()).unwrap_or("output");
     let log_path = output.with_file_name(format!("{stem}_日志.json"));
     audit::export(audit, &log_path, file_hash).map_err(ExecError::Audit)?;
     Ok(())
@@ -786,9 +787,9 @@ mod tests {
         assert!(report.success);
         assert!(report.processed > 0, "列规则应处理至少一个数据 cell");
 
-        // 审计日志存在
-        let stem = tmp.path().file_stem().unwrap().to_str().unwrap();
-        let log_path = tmp.path().with_file_name(format!("{stem}_日志.json"));
+        // 审计日志存在（命名基于输入文件 stem，与 Python get_log_filename 一致）
+        let input_stem = input.file_stem().unwrap().to_str().unwrap();
+        let log_path = tmp.path().with_file_name(format!("{input_stem}_日志.json"));
         assert!(log_path.exists(), "审计日志应写入: {}", log_path.display());
         let log: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&log_path).unwrap())

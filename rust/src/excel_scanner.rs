@@ -105,19 +105,22 @@ pub fn parse_workbook(path: &Path) -> Result<Vec<SheetData>, Box<dyn std::error:
             }
         };
 
-        let num_rows = (end_row - start_row + 1) as usize;
-        let num_cols = (end_col - start_col + 1) as usize;
+        // 网格从 (0,0) 开始构建（对齐 openpyxl 绝对坐标语义）：
+        // used range 之外的行/列填 Empty。这样 rows[0] 恒对应 Excel 第 1 行，
+        // cell_coord(row, col) 生成的坐标与 XML 里的 r="A1" 一致。
+        let num_rows = (end_row + 1) as usize;
+        let num_cols = (end_col + 1) as usize;
         let mut rows = Vec::with_capacity(num_rows);
 
-        for r in start_row..=end_row {
+        for r in 0..=end_row {
             let mut row = Vec::with_capacity(num_cols);
-            for c in start_col..=end_col {
-                row.push(
-                    range
-                        .get_value((r, c))
-                        .cloned()
-                        .unwrap_or(Data::Empty),
-                );
+            for c in 0..=end_col {
+                let cell = if r >= start_row && c >= start_col {
+                    range.get_value((r, c)).cloned().unwrap_or(Data::Empty)
+                } else {
+                    Data::Empty
+                };
+                row.push(cell);
             }
             rows.push(row);
         }
