@@ -5,6 +5,7 @@ pub mod engine;
 pub mod column_matcher;
 pub mod config;
 pub mod excel_scanner;
+pub mod executor;
 pub mod header_finder;
 pub mod models;
 pub mod patterns;
