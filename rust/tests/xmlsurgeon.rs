@@ -276,7 +276,7 @@ fn numeric_cell_gets_type_str_on_text_write() {
 
     // data1.xlsx sheet2 has <c r="A2" s="11"> (numeric, no t= attribute)
     // Discover sheet2's name dynamically
-    let mut wb: calamine::Xlsx<_> = calamine::open_workbook(&path).unwrap();
+    let wb: calamine::Xlsx<_> = calamine::open_workbook(&path).unwrap();
     let sheets_meta = wb.sheets_metadata().to_vec();
     let sheet2_name = sheets_meta.iter()
         .find(|m| m.visible == calamine::SheetVisible::Visible && m.name != sheets_meta[0].name)
@@ -309,12 +309,43 @@ fn numeric_cell_gets_type_str_on_text_write() {
     let _ = wb2.worksheet_range(&sheet2_name).unwrap();
 }
 
+/// 有些 xlsx 的 rels Target 是绝对路径（如 /xl/worksheets/sheet1.xml），
+/// resolve_sheet_path 必须正确处理，不能拼出 xl/xl/...。
+#[test]
+fn absolute_rels_target_path() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../examples/天齐锂业2026年半年度利润表.xlsx");
+    if !path.exists() {
+        eprintln!("skipping: fixture not found");
+        return;
+    }
+    let mut surgeon = XmlSurgeon::open(&path).expect("should open xlsx with absolute rels target");
+    // 找第一个 sheet 名
+    let sheet = {
+        let wb: calamine::Xlsx<_> = calamine::open_workbook(&path).unwrap();
+        wb.sheets_metadata()
+            .iter()
+            .find(|m| m.visible == calamine::SheetVisible::Visible)
+            .map(|m| m.name.clone())
+            .unwrap()
+    };
+    // 这一步在修复前会报 Entry not found: xl/xl/worksheets/sheet1.xml
+    surgeon.set_cell_text(&sheet, "A1", "TEST").expect("set_cell_text should succeed with absolute rels target");
+
+    let tmp = tempfile::NamedTempFile::with_suffix(".xlsx").unwrap();
+    surgeon.save(tmp.path()).expect("save should succeed");
+
+    // 验证可重新打开
+    let saved = XmlSurgeon::open(tmp.path()).unwrap();
+    assert!(saved.entry_count() > 0);
+}
+
 /// C1: writing a number to a numeric cell must NOT add t="str".
 #[test]
 fn numeric_cell_keeps_no_type_on_number_write() {
     let path = fixture("data1.xlsx");
 
-    let mut wb: calamine::Xlsx<_> = calamine::open_workbook(&path).unwrap();
+    let wb: calamine::Xlsx<_> = calamine::open_workbook(&path).unwrap();
     let sheets_meta = wb.sheets_metadata().to_vec();
     let sheet2_name = sheets_meta.iter()
         .find(|m| m.visible == calamine::SheetVisible::Visible && m.name != sheets_meta[0].name)

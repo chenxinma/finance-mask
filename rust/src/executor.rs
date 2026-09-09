@@ -186,8 +186,14 @@ impl Executor {
                         &action_str(&site.action),
                     );
                     if let Some(ref mut s) = surgeon {
+                        // 尝试保留数值类型（对齐 Python executor 行为）
+                        let write_value = if site.action == ActionType::Precision || site.action == ActionType::Perturb || site.action == ActionType::Mask {
+                            try_numeric_value(&redacted)
+                        } else {
+                            redacted.clone()
+                        };
                         if let Err(e) =
-                            s.set_cell_text(sheet_name, cell_ref, &redacted)
+                            s.set_cell_text(sheet_name, cell_ref, &write_value)
                         {
                             report.errors += 1;
                             audit.log_error(
@@ -317,8 +323,14 @@ impl Executor {
                             );
                             if !dry_run {
                                 if let Some(ref mut s) = surgeon {
+                                    // 尝试保留数值类型（对齐 Python executor 行为）
+                                    let write_value = if rule.action == ActionType::Precision || rule.action == ActionType::Perturb || rule.action == ActionType::Mask {
+                                        try_numeric_value(&redacted)
+                                    } else {
+                                        redacted.clone()
+                                    };
                                     // I7: don't swallow write-back errors
-                                    match s.set_cell_text(&sheet.name, &cell_ref, &redacted) {
+                                    match s.set_cell_text(&sheet.name, &cell_ref, &write_value) {
                                         Ok(()) => {
                                             written.insert(
                                                 (sheet.name.clone(), cell_ref),
@@ -507,6 +519,33 @@ pub fn redact_value(
                 "比例缩放模式需要预计算的 params.scale 参数".into(),
             ))
         }
+    }
+}
+
+/// 尝试将脱敏值转为数值字符串（对齐 Python executor 的数值保留逻辑）。
+///
+/// Python 在写入 Excel 前会 strip 单位后缀再 parse float：
+/// ```python
+/// cell.value = float(redacted_value.replace(",", "").replace("元", "").replace("百万", "").replace("亿", "").replace("千", ""))
+/// ```
+/// 成功则返回纯数值字符串（如 "22"），失败则返回原值。
+fn try_numeric_value(redacted: &str) -> String {
+    let cleaned = redacted
+        .replace(',', "")
+        .replace("元", "")
+        .replace("百万", "")
+        .replace("亿", "")
+        .replace("千", "")
+        .replace(' ', "");
+    if let Ok(n) = cleaned.parse::<f64>() {
+        // 保持整数不带小数点，浮点保留原样
+        if n.fract() == 0.0 && !cleaned.contains('.') {
+            format!("{}", n as i64)
+        } else {
+            format!("{}", n)
+        }
+    } else {
+        redacted.to_string()
     }
 }
 
@@ -716,20 +755,24 @@ fn embed_watermark_pptx(
         return Ok(());
     }
 
-    // Read all entries from the pptx zip
-    let file = std::fs::File::open(output)?;
-    let mut archive = ZipArchive::new(std::io::BufReader::new(file))?;
+    // Read all entries from the pptx zip.
+    // IMPORTANT: drop archive BEFORE File::create on Windows — the file handle
+    // must be released so truncation doesn't corrupt buffered reads.
+    let entries: Vec<(String, Vec<u8>)> = {
+        let file = std::fs::File::open(output)?;
+        let mut archive = ZipArchive::new(std::io::BufReader::new(file))?;
+        let mut entries = Vec::new();
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i)?;
+            let name = entry.name().to_string();
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)?;
+            entries.push((name, buf));
+        }
+        entries
+    };
 
-    let mut entries: Vec<(String, Vec<u8>)> = Vec::new();
-    for i in 0..archive.len() {
-        let mut entry = archive.by_index(i)?;
-        let name = entry.name().to_string();
-        let mut buf = Vec::new();
-        entry.read_to_end(&mut buf)?;
-        entries.push((name, buf));
-    }
-
-    // For each slide XML, find first <a:t> and append watermark
+    // For each slide XML, find first <a:t> (with or without attributes) and append watermark
     let options = SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .compression_level(Some(6));
@@ -741,8 +784,10 @@ fn embed_watermark_pptx(
     for (name, content) in &entries {
         if name.starts_with("ppt/slides/slide") && name.ends_with(".xml") && !watermarked {
             let xml = String::from_utf8_lossy(content);
-            if let Some(idx) = xml.find("<a:t>") {
-                let text_start = idx + 5;
+            // Look for <a:t> or <a:t ...> (with attributes like xml:space="preserve")
+            let needle = find_a_t_open(&xml);
+            if let Some((_idx, tag_end)) = needle {
+                let text_start = tag_end;
                 if let Some(end_idx) = xml[text_start..].find("</a:t>") {
                     let original_text = &xml[text_start..text_start + end_idx];
                     let new_text = format!("{}{}", original_text, &watermark);
@@ -764,6 +809,37 @@ fn embed_watermark_pptx(
 
     zip.finish()?;
     Ok(())
+}
+
+/// Find an `<a:t>` opening tag (with or without attributes) in the XML string.
+/// Returns (start_of_tag, position_after_closing_>).
+fn find_a_t_open(xml: &str) -> Option<(usize, usize)> {
+    let bytes = xml.as_bytes();
+    let mut search_from = 0;
+    loop {
+        let rel = xml[search_from..].find("<a:t")?;
+        let start = search_from + rel;
+        let after = start + 4;
+        if after >= bytes.len() {
+            return None;
+        }
+        let next = bytes[after];
+        // Must be followed by >, /, or whitespace to be <a:t>, not <a:tbl> etc.
+        let is_a_t = next == b'>' || next == b'/' || next == b' ' || next == b'\t' || next == b'\r' || next == b'\n';
+        if is_a_t {
+            // Find the closing >
+            if let Some(gt) = xml[start..].find('>') {
+                let tag_end = start + gt + 1;
+                // Skip self-closing <a:t/> (no text content)
+                if xml[start..tag_end].ends_with("/>") {
+                    search_from = tag_end;
+                    continue;
+                }
+                return Some((start, tag_end));
+            }
+        }
+        search_from = after;
+    }
 }
 
 #[cfg(test)]

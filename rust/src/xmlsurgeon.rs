@@ -231,7 +231,12 @@ impl XmlSurgeon {
             // 自闭合 cell（<c r="A1"/>）没有 <v>，插入 <v> 时保持无类型属性。
             let new_cell = if is_self_closing {
                 // <c r="A1" s="23"/> → <c r="A1" s="23"><v>new</v></c>
-                let tag = base_tag.trim_end_matches('/').trim_end();
+                // 将自闭合 /> 替换为 >
+                let tag = if base_tag.ends_with("/>") {
+                    format!("{}>", &base_tag[..base_tag.len() - 2])
+                } else {
+                    base_tag.to_string()
+                };
                 format!("{}<v>{}</v></c>", tag, escape_xml(&new_v_content))
             } else {
                 // <c r="A1" s="23" t="s"><v>old</v></c> → 保留开标签，只换 <v> 内容
@@ -355,7 +360,16 @@ impl XmlSurgeon {
         for (name, rid) in &sheet_entries {
             if name == sheet_name {
                 if let Some(target) = rid_to_target.get(rid) {
-                    let full = format!("xl/{}", target.trim_start_matches('/'));
+                    // rels Target 有三种写法：
+                    //   "worksheets/sheet1.xml"          (相对 xl/)
+                    //   "/xl/worksheets/sheet1.xml"       (绝对路径)
+                    //   "xl/worksheets/sheet1.xml"        (带 xl/ 前缀)
+                    let t = target.trim_start_matches('/');
+                    let full = if t.starts_with("xl/") {
+                        t.to_string()
+                    } else {
+                        format!("xl/{}", t)
+                    };
                     return Ok(full);
                 }
             }

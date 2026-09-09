@@ -116,6 +116,9 @@ impl PptxEditor {
     /// Replace all occurrences of `old` with `new` inside `<a:t>...</a:t>`
     /// elements of slide `slide_idx` (1-based).
     ///
+    /// Uses quick-xml event traversal: only Text/CData nodes inside `<a:t>`
+    /// elements are modified; all other markup is copied verbatim.
+    ///
     /// Both the slide body (`ppt/slides/slide{idx}.xml`) and, when present,
     /// its notes (`ppt/notesSlides/notesSlide{idx}.xml`) are updated. Returns
     /// [`PptError::SlideNotFound`] if the slide XML entry does not exist.
@@ -125,21 +128,13 @@ impl PptxEditor {
         let slide_entry =
             find_entry_idx(&self.entries, &slide_name).ok_or(PptError::SlideNotFound(slide_idx))?;
         let slide_xml = String::from_utf8(self.entries[slide_entry].1.clone())?;
-        // First try: single-run replacement
-        let mut result = replace_in_xml(&slide_xml, old, new);
-        // I5 fallback: if old spans multiple <a:t> runs, merge and replace
-        if result == slide_xml {
-            result = replace_cross_run(&slide_xml, old, new);
-        }
+        let result = replace_in_xml_events(&slide_xml, old, new);
         self.entries[slide_entry].1 = result.into_bytes();
 
         let notes_name = format!("ppt/notesSlides/notesSlide{}.xml", slide_idx);
         if let Some(notes_entry) = find_entry_idx(&self.entries, &notes_name) {
             let notes_xml = String::from_utf8(self.entries[notes_entry].1.clone())?;
-            let mut result = replace_in_xml(&notes_xml, old, new);
-            if result == notes_xml {
-                result = replace_cross_run(&notes_xml, old, new);
-            }
+            let result = replace_in_xml_events(&notes_xml, old, new);
             self.entries[notes_entry].1 = result.into_bytes();
         }
 
@@ -166,197 +161,237 @@ impl PptxEditor {
 }
 
 // ---------------------------------------------------------------------------
-// Replacement core
+// Replacement core (event-based)
 // ---------------------------------------------------------------------------
 
-/// Replace `old` with `new` only inside `<a:t>...</a:t>` text content.
+use quick_xml::events::{BytesCData, BytesEnd, BytesStart, BytesText, Event};
+use quick_xml::reader::Reader;
+use quick_xml::writer::Writer;
+
+/// Replace `old` with `new` in text content inside `<a:t>` elements.
 ///
-/// Byte-level scan over the raw XML string: the replacement is applied only to
-/// the span between an `<a:t` opening tag (with or without attributes) and its
-/// matching `</a:t>` closing tag. Everything else — including element names
-/// that merely start with `<a:t` (e.g. `<a:tbl>`, `<a:tc>`, `<a:tr>`,
-/// `<a:txBody>`, `<a:tableStyleId>`), attributes, and other markup — is copied
-/// through verbatim.
+/// Uses quick-xml event traversal: reads every event, modifies Text/CData
+/// nodes that sit inside an `<a:t>` element, and writes everything else
+/// verbatim. This preserves XML structure perfectly — no string-level
+/// truncation, no risk of corrupting surrounding markup.
 ///
-/// # Escaping assumption
-///
-/// `old` and `new` are plain (unescaped) text. The replacement is a raw
-/// substring replacement of the stored bytes and `new` is written back
-/// verbatim: no XML escaping is performed. Finance-mask values (amounts,
-/// names, account numbers) contain no `<`, `>`, or `&`, so callers must pass
-/// values that do not require XML escaping.
-fn replace_in_xml(xml: &str, old: &str, new: &str) -> String {
-    // Empty `old` would make `str::replace` insert `new` between every
-    // character; treat it as a no-op instead of producing surprising output.
+/// For cross-run text (split across multiple `<a:t>` inside one `<a:p>`),
+/// the paragraph is re-serialized with a single merged `<a:r><a:t>` run.
+fn replace_in_xml_events(xml: &str, old: &str, new: &str) -> String {
     if old.is_empty() {
         return xml.to_string();
     }
 
-    let bytes = xml.as_bytes();
-    let mut out = String::with_capacity(xml.len());
-    // Index of the next byte not yet copied verbatim into `out`.
-    let mut cursor = 0;
-    // Index at which to resume scanning for the next `<a:t` candidate.
-    let mut search_from = 0;
-
-    loop {
-        let Some(rel) = xml[search_from..].find("<a:t") else {
-            break;
-        };
-        let start = search_from + rel;
-
-        // `<a:t` must be followed by `>`, `/`, or whitespace to be an `<a:t>`
-        // element. Anything else is a different element name and is skipped.
-        let after = start + "<a:t".len();
-        if after >= bytes.len() {
-            break;
-        }
-        let next = bytes[after];
-        let is_a_t = next == b'>'
-            || next == b'/'
-            || next == b' '
-            || next == b'\t'
-            || next == b'\r'
-            || next == b'\n';
-        if !is_a_t {
-            search_from = start + "<a:t".len();
-            continue;
-        }
-
-        // Find the end of the opening tag (first `>` after `<a:t`).
-        let Some(rel_gt) = xml[start..].find('>') else {
-            break;
-        };
-        let open_end = start + rel_gt;
-
-        // Self-closing (`<a:t/>` or `<a:t xml:space="preserve"/>`) has no
-        // text content, so there is nothing to replace.
-        if xml[start..open_end].ends_with('/') {
-            search_from = open_end + 1;
-            continue;
-        }
-
-        // Text content spans from just after `>` to the matching `</a:t>`.
-        let content_start = open_end + 1;
-        let Some(rel_close) = xml[content_start..].find("</a:t>") else {
-            break;
-        };
-        let close_start = content_start + rel_close;
-        let close_end = close_start + "</a:t>".len();
-
-        out.push_str(&xml[cursor..content_start]);
-        out.push_str(&xml[content_start..close_start].replace(old, new));
-        out.push_str(&xml[close_start..close_end]);
-        cursor = close_end;
-        search_from = close_end;
+    // Phase 1: single-run replacement via event stream.
+    let result = replace_single_run(xml, old, new);
+    if result != xml {
+        return result;
     }
 
-    out.push_str(&xml[cursor..]);
-    out
+    // Phase 2: cross-run fallback — text split across multiple <a:t> runs.
+    replace_cross_run_events(xml, old, new)
 }
 
-/// I5 fallback: when `old` spans multiple `<a:t>` runs inside a `<a:p>`
-/// paragraph, concatenate all `<a:t>` text, check for match, and if found,
-/// merge all runs into one with the replacement applied.
-///
-/// Only replaces the FIRST occurrence across runs (matches `replace_in_xml`
-/// behavior of one replacement per call via executor).
-fn replace_cross_run(xml: &str, old: &str, new: &str) -> String {
-    if old.is_empty() {
-        return xml.to_string();
-    }
-
-    let bytes = xml.as_bytes();
-    let mut out = String::with_capacity(xml.len());
-    let mut cursor = 0;
+/// Single-run replacement: walk events, replace text inside each `<a:t>`.
+fn replace_single_run(xml: &str, old: &str, new: &str) -> String {
+    let mut reader = Reader::from_str(xml);
+    let mut writer = Writer::new(Vec::with_capacity(xml.len()));
+    let mut buf = Vec::new();
+    // Depth counter: >0 means we are inside an <a:t> element.
+    let mut in_a_t_depth: u32 = 0;
+    let mut found = false;
 
     loop {
-        // Find next <a:p> (not <a:para>, <a:pic>, etc.)
-        let Some(rel) = xml[cursor..].find("<a:p") else { break };
-        let p_start = cursor + rel;
-        let after_tag = p_start + 4;
-        if after_tag >= bytes.len() { break; }
-        let next = bytes[after_tag];
-        if next != b'>' && next != b' ' && next != b'\t' && next != b'\r' && next != b'\n' && next != b'/' {
-            cursor = after_tag;
-            continue;
-        }
-
-        // Find matching </a:p> (accounting for nesting)
-        let mut depth = 1u32;
-        let mut scan = after_tag;
-        let p_content_end = loop {
-            if let Some(r) = xml[scan..].find("</a:p>") {
-                let abs = scan + r;
-                depth -= 1;
-                if depth == 0 { break Some(abs); }
-                scan = abs + 6;
-            } else if let Some(r) = xml[scan..].find("<a:p") {
-                let abs = scan + r;
-                let a = abs + 4;
-                if a < bytes.len() {
-                    let c = bytes[a];
-                    if c == b'>' || c == b' ' || c == b'\t' || c == b'\r' || c == b'\n' || c == b'/' {
-                        depth += 1;
-                    }
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                if is_a_t_tag(e) {
+                    in_a_t_depth += 1;
                 }
-                scan = abs + 4;
-            } else {
-                break None;
+                writer.write_event(Event::Start(e.clone())).ok();
             }
-        };
-        let Some(content_end) = p_content_end else { break };
-        let p_full_end = content_end + "</a:p>".len();
-        let p_xml = &xml[p_start..p_full_end];
-
-        // Concatenate all <a:t> text content within this paragraph
-        let mut concat = String::new();
-        let mut pos = 0;
-        while pos < p_xml.len() {
-            if let Some(r) = p_xml[pos..].find("<a:t") {
-                let abs = pos + r;
-                let a = abs + 4;
-                if a >= p_xml.len() { break; }
-                let c = p_xml.as_bytes()[a];
-                let is_a_t = c == b'>' || c == b'/' || c == b' ' || c == b'\t' || c == b'\r' || c == b'\n';
-                if !is_a_t { pos = a; continue; }
-                if let Some(gt) = p_xml[abs..].find('>') {
-                    let open_end = abs + gt;
-                    if p_xml[abs..open_end].ends_with('/') {
-                        pos = open_end + 1;
-                        continue;
-                    }
-                    let text_start = open_end + 1;
-                    if let Some(cl) = p_xml[text_start..].find("</a:t>") {
-                        let text_end = text_start + cl;
-                        concat.push_str(&p_xml[text_start..text_end]);
-                        pos = text_end + 6;
-                        continue;
-                    }
+            Ok(Event::End(ref e)) => {
+                if is_a_t_end(e) && in_a_t_depth > 0 {
+                    in_a_t_depth -= 1;
                 }
-                break;
-            } else {
-                break;
+                writer.write_event(Event::End(e.clone())).ok();
             }
+            Ok(Event::Empty(ref e)) => {
+                // Self-closing <a:t/> — nothing to replace.
+                writer.write_event(Event::Empty(e.clone())).ok();
+            }
+            Ok(Event::Text(ref e)) if in_a_t_depth > 0 => {
+                let text = e.unescape().unwrap_or_default();
+                if text.contains(old) {
+                    let replaced = text.replace(old, new);
+                    writer.write_event(Event::Text(BytesText::new(&replaced))).ok();
+                    found = true;
+                } else {
+                    writer.write_event(Event::Text(e.clone())).ok();
+                }
+            }
+            Ok(Event::CData(ref e)) if in_a_t_depth > 0 => {
+                let text = String::from_utf8_lossy(e.as_ref()).to_string();
+                if text.contains(old) {
+                    let replaced = text.replace(old, new);
+                    writer.write_event(Event::CData(BytesCData::new(&replaced))).ok();
+                    found = true;
+                } else {
+                    writer.write_event(Event::CData(e.clone())).ok();
+                }
+            }
+            Ok(Event::Eof) => break,
+            Ok(e) => {
+                writer.write_event(e.into_owned()).ok();
+            }
+            Err(_) => break,
         }
-
-        // Copy everything before this paragraph
-        out.push_str(&xml[cursor..p_start]);
-
-        if concat.contains(old) {
-            // Found: merge all runs into one with replacement
-            let replaced = concat.replacen(old, new, 1);
-            let escaped = escape_xml_text(&replaced);
-            out.push_str(&format!("<a:p><a:r><a:t>{}</a:t></a:r></a:p>", escaped));
-        } else {
-            // No match — keep paragraph as-is
-            out.push_str(p_xml);
-        }
-        cursor = p_full_end;
+        buf.clear();
     }
 
-    out.push_str(&xml[cursor..]);
-    out
+    if found {
+        String::from_utf8(writer.into_inner()).unwrap_or_else(|_| xml.to_string())
+    } else {
+        xml.to_string()
+    }
+}
+
+/// Cross-run replacement: when `old` spans multiple `<a:t>` runs inside a
+/// `<a:p>` paragraph, concatenate all `<a:t>` text, check for match, and
+/// if found, merge runs into a single `<a:r><a:t>` with the replacement.
+///
+/// Only replaces the FIRST occurrence.
+fn replace_cross_run_events(xml: &str, old: &str, new: &str) -> String {
+    let mut reader = Reader::from_str(xml);
+    let mut writer = Writer::new(Vec::with_capacity(xml.len()));
+    let mut buf = Vec::new();
+
+    // State for collecting a paragraph's <a:t> text.
+    let mut in_para = false;
+    let mut para_events: Vec<Event> = Vec::new();
+    let mut para_texts: Vec<String> = Vec::new();
+    let mut current_text = String::new();
+    let mut in_a_t_depth: u32 = 0;
+    let mut replaced = false;
+
+    loop {
+        let event = reader.read_event_into(&mut buf);
+        // Clone/own the event immediately so we can clear buf.
+        let owned: Event = match event {
+            Ok(e) => e.into_owned(),
+            Err(_) => break,
+        };
+        buf.clear();
+
+        match &owned {
+            Event::Start(e) => {
+                let ln = e.local_name();
+                if ln.as_ref() == b"p" && !replaced {
+                    in_para = true;
+                    para_events.clear();
+                    para_texts.clear();
+                }
+                if is_a_t_tag(e) {
+                    in_a_t_depth += 1;
+                    current_text.clear();
+                }
+                if in_para {
+                    para_events.push(owned.clone());
+                } else {
+                    writer.write_event(owned.clone()).ok();
+                }
+            }
+            Event::End(e) => {
+                if is_a_t_end(e) && in_a_t_depth > 0 {
+                    in_a_t_depth -= 1;
+                    if in_para {
+                        para_texts.push(current_text.clone());
+                    }
+                }
+                let ln = e.local_name();
+                if ln.as_ref() == b"p" && in_para {
+                    let concat = para_texts.join("");
+                    if !replaced && concat.contains(old) {
+                        let r = concat.replacen(old, new, 1);
+                        let escaped = escape_xml_text(&r);
+                        writer.write_event(Event::Start(BytesStart::new("a:p"))).ok();
+                        writer.write_event(Event::Start(BytesStart::new("a:r"))).ok();
+                        writer.write_event(Event::Start(BytesStart::new("a:t"))).ok();
+                        writer.write_event(Event::Text(BytesText::new(&escaped))).ok();
+                        writer.write_event(Event::End(BytesEnd::new("a:t"))).ok();
+                        writer.write_event(Event::End(BytesEnd::new("a:r"))).ok();
+                        writer.write_event(Event::End(BytesEnd::new("a:p"))).ok();
+                        replaced = true;
+                    } else {
+                        for ev in para_events.drain(..) {
+                            writer.write_event(ev).ok();
+                        }
+                        writer.write_event(owned.clone()).ok();
+                    }
+                    in_para = false;
+                    para_events.clear();
+                    para_texts.clear();
+                } else if in_para {
+                    para_events.push(owned.clone());
+                } else {
+                    writer.write_event(owned.clone()).ok();
+                }
+            }
+            Event::Empty(e) => {
+                if is_a_t_tag(e) {
+                    // Self-closing <a:t/> — nothing to replace.
+                }
+                if in_para {
+                    para_events.push(owned.clone());
+                } else {
+                    writer.write_event(owned.clone()).ok();
+                }
+            }
+            Event::Text(e) if in_a_t_depth > 0 => {
+                let text = e.unescape().unwrap_or_default().to_string();
+                current_text.push_str(&text);
+                if in_para {
+                    para_events.push(owned.clone());
+                } else {
+                    writer.write_event(owned.clone()).ok();
+                }
+            }
+            Event::CData(e) if in_a_t_depth > 0 => {
+                let text = String::from_utf8_lossy(e.as_ref()).to_string();
+                current_text.push_str(&text);
+                if in_para {
+                    para_events.push(owned.clone());
+                } else {
+                    writer.write_event(owned.clone()).ok();
+                }
+            }
+            Event::Eof => break,
+            _ => {
+                if in_para {
+                    para_events.push(owned.clone());
+                } else {
+                    writer.write_event(owned.clone()).ok();
+                }
+            }
+        }
+    }
+
+    if replaced {
+        String::from_utf8(writer.into_inner()).unwrap_or_else(|_| xml.to_string())
+    } else {
+        xml.to_string()
+    }
+}
+
+/// Check if a start element is `<a:t>` (not `<a:tbl>`, `<a:tc>`, etc.).
+fn is_a_t_tag(e: &BytesStart) -> bool {
+    let ln = e.local_name();
+    ln.as_ref() == b"t" && e.name().as_ref().starts_with(b"a:")
+}
+
+/// Check if an end element is `</a:t>`.
+fn is_a_t_end(e: &BytesEnd) -> bool {
+    let ln = e.local_name();
+    ln.as_ref() == b"t" && e.name().as_ref().starts_with(b"a:")
 }
 
 /// Minimal XML text escaping for values written into <a:t>.
@@ -379,19 +414,19 @@ mod tests {
     fn replace_text_in_slide_xml() {
         // Plain text content.
         assert_eq!(
-            replace_in_xml("<a:t>Hello World</a:t>", "World", "Finance"),
+            replace_in_xml_events("<a:t>Hello World</a:t>", "World", "Finance"),
             "<a:t>Hello Finance</a:t>"
         );
 
         // Opening tag with an attribute is preserved verbatim.
         assert_eq!(
-            replace_in_xml(r#"<a:t xml:space="preserve">abc</a:t>"#, "abc", "xyz"),
+            replace_in_xml_events(r#"<a:t xml:space="preserve">abc</a:t>"#, "abc", "xyz"),
             r#"<a:t xml:space="preserve">xyz</a:t>"#
         );
 
         // Text inside <a:t> is replaced, but attribute text is untouched.
         assert_eq!(
-            replace_in_xml(
+            replace_in_xml_events(
                 r#"<a:p><a:t>Hello</a:t></a:p><p:sp name="Hello"/>"#,
                 "Hello",
                 "Bye"
@@ -402,7 +437,7 @@ mod tests {
         // Element names starting with "<a:t" (e.g. <a:txBody>) are not mistaken
         // for <a:t>, so the real <a:t> close tag survives intact.
         assert_eq!(
-            replace_in_xml(
+            replace_in_xml_events(
                 "<a:txBody><a:r><a:t>Hello</a:t></a:r></a:txBody>",
                 "Hello",
                 "Bye"
@@ -451,12 +486,7 @@ mod tests {
     fn replace_cross_run_basic() {
         // Text split across two <a:r> runs
         let xml = r#"<a:txBody><a:p><a:r><a:t>天齐锂业</a:t></a:r><a:r><a:t>股份有限公司</a:t></a:r></a:p></a:txBody>"#;
-        let result = replace_in_xml(xml, "天齐锂业股份有限公司", "[公司A]");
-        // Single-run replacement won't find it
-        assert_eq!(result, xml, "single-run should not match cross-run text");
-
-        // Cross-run fallback should
-        let result = replace_cross_run(xml, "天齐锂业股份有限公司", "[公司A]");
+        let result = replace_in_xml_events(xml, "天齐锂业股份有限公司", "[公司A]");
         assert!(result.contains("[公司A]"), "cross-run should replace: {}", result);
         assert!(!result.contains("天齐锂业"), "original should be gone: {}", result);
     }
@@ -464,7 +494,7 @@ mod tests {
     #[test]
     fn replace_cross_run_no_match() {
         let xml = r#"<a:txBody><a:p><a:r><a:t>Hello</a:t></a:r></a:p></a:txBody>"#;
-        let result = replace_cross_run(xml, "Missing", "X");
+        let result = replace_in_xml_events(xml, "Missing", "X");
         assert_eq!(result, xml, "no match should return unchanged");
     }
 
@@ -472,7 +502,7 @@ mod tests {
     fn replace_cross_run_single_run_still_works() {
         // Even in cross-run mode, single-run text should still be found
         let xml = r#"<a:txBody><a:p><a:r><a:t>Hello World</a:t></a:r></a:p></a:txBody>"#;
-        let result = replace_cross_run(xml, "Hello", "Bye");
+        let result = replace_in_xml_events(xml, "Hello", "Bye");
         assert!(result.contains("Bye World"), "single run via cross-run: {}", result);
     }
 
