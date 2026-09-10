@@ -2,7 +2,7 @@ metadata:
   version: '1.0'
   source_file: 天齐锂业2026年半年度利润表.xlsx
   source_hash: d5199ee99d821cf44ce14c45cc5a17b44f5cc1632a392bfb4a389ae79293658c
-  generated_at: 2026-09-10T17:20:18.079244
+  generated_at: 2026-09-10T17:21:32.473144
   total_sites: 4
 column_rules:
 - match_type: exact
