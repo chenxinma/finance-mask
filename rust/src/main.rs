@@ -1,5 +1,5 @@
 // rust/src/main.rs —— CLI 入口：generate + redact 子命令
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
@@ -214,6 +214,12 @@ fn run_redact(
     Ok(())
 }
 
+/// 获取 exe 所在目录下的 config 目录
+fn exe_config_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let exe = std::env::current_exe()?;
+    Ok(exe.parent().unwrap_or(Path::new(".")).join("config"))
+}
+
 /// 内置默认策略（对应 Python main.py _generate_default_strategy：扫描 → 全部位点启用）
 fn generate_default_strategy(
     input: &std::path::Path,
@@ -225,7 +231,8 @@ fn generate_default_strategy(
         .to_ascii_lowercase();
 
     let matcher = ColumnMatcher::new(config::builtin_column_rules()?);
-    let patterns = PatternRegistry::builtin()?;
+    let config_dir = exe_config_dir()?;
+    let patterns = PatternRegistry::builtin(&config_dir)?;
 
     let (sites, column_rules) = if ext == "xlsx" {
         let sheets = parse_workbook(input)?;
@@ -299,7 +306,8 @@ fn run_generate(
             .to_ascii_lowercase();
 
         let matcher = ColumnMatcher::new(config::builtin_column_rules()?);
-        let patterns = PatternRegistry::builtin()?;
+        let config_dir = exe_config_dir()?;
+        let patterns = PatternRegistry::builtin(&config_dir)?;
 
         let (sites, column_rules) = if ext == "xlsx" {
             let sheets = parse_workbook(file_path)?;

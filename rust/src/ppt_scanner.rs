@@ -291,9 +291,10 @@ mod tests {
     use crate::ppt_reader::PptShape;
 
     fn make_scanner(rules: Vec<ColumnRule>) -> PptScanner {
+        let config_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("config");
         PptScanner::new(
             ColumnMatcher::new(rules),
-            PatternRegistry::builtin().unwrap(),
+            PatternRegistry::builtin(&config_dir).unwrap(),
         )
     }
 

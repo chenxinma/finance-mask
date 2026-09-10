@@ -1,5 +1,7 @@
 // 调试：找出 PPT 脱敏后哪个 zip entry 被破坏
 
+use std::path::Path;
+
 use finance_mask_core::column_matcher::ColumnMatcher;
 use finance_mask_core::executor::Executor;
 use finance_mask_core::models::*;
@@ -8,6 +10,10 @@ use finance_mask_core::ppt_reader;
 use finance_mask_core::ppt_scanner::PptScanner;
 use finance_mask_core::ppt_writer::PptxEditor;
 use std::io::Read;
+
+fn config_dir() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("config").leak()
+}
 use std::path::PathBuf;
 use zip::read::ZipArchive;
 
@@ -96,7 +102,7 @@ fn debug_tianqi_pptx_step_by_step() {
     let slides = ppt_reader::parse_pptx(&input).unwrap();
     let scanner = PptScanner::new(
         ColumnMatcher::new(vec![]),
-        PatternRegistry::builtin().unwrap(),
+        PatternRegistry::builtin(config_dir()).unwrap(),
     );
     let sites = scanner.scan(&slides);
     eprintln!("Step 2: found {} sites", sites.len());

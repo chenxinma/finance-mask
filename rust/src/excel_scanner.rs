@@ -832,7 +832,8 @@ mod tests {
 
     fn make_scanner(rules: Vec<ColumnRule>) -> ExcelScanner {
         let matcher = ColumnMatcher::new(rules);
-        let patterns = PatternRegistry::builtin().unwrap();
+        let config_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("config");
+        let patterns = PatternRegistry::builtin(&config_dir).unwrap();
         ExcelScanner::new(matcher, patterns)
     }
 
@@ -1162,8 +1163,8 @@ mod tests {
         let scanner = make_scanner(vec![]);
         let sites = scanner.scan_extra_text(&sheet, &[]);
 
-        // 应在 A1（row0 col0）发现 Entity 位点
-        assert_eq!(sites.len(), 1, "expected 1 site from title row, got: {:?}", sites);
+        // 应在 A1（row0 col0）发现 Entity 位点（字典优先命中，正则跳过重叠区域）
+        assert_eq!(sites.len(), 1, "expected 1 site from title row (dict priority), got: {:?}", sites);
         let site = &sites[0];
         assert_eq!(site.detected_type, DetectedType::Entity);
         assert_eq!(site.discovered_by, DiscoveredBy::FulltextScan);

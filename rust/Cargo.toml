@@ -17,6 +17,7 @@ quick-xml = "0.36"
 zip = "2"
 fancy-regex = "0.14"
 regex = "1"
+aho-corasick = "1"
 lazy_static = "1.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

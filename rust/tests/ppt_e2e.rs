@@ -1,5 +1,7 @@
 // 端到端 PPT 脱敏测试：扫描 → 策略 → 脱敏 → python-pptx 验证
 
+use std::path::Path;
+
 use finance_mask_core::column_matcher::ColumnMatcher;
 use finance_mask_core::executor::Executor;
 use finance_mask_core::models::*;
@@ -7,6 +9,10 @@ use finance_mask_core::patterns::PatternRegistry;
 use finance_mask_core::ppt_reader;
 use finance_mask_core::ppt_scanner::PptScanner;
 use std::path::PathBuf;
+
+fn config_dir() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("config").leak()
+}
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -74,7 +80,7 @@ fn ppt_e2e_scan_redact_verify() {
     // 2. 扫描位点（无列头规则，仅全文扫描）
     let scanner = PptScanner::new(
         ColumnMatcher::new(vec![]),
-        PatternRegistry::builtin().unwrap(),
+        PatternRegistry::builtin(config_dir()).unwrap(),
     );
     let sites = scanner.scan(&slides);
     assert!(!sites.is_empty(), "should find sensitive sites");
@@ -111,7 +117,7 @@ fn ppt_e2e_dry_run() {
     let slides = ppt_reader::parse_pptx(&input).unwrap();
     let scanner = PptScanner::new(
         ColumnMatcher::new(vec![]),
-        PatternRegistry::builtin().unwrap(),
+        PatternRegistry::builtin(config_dir()).unwrap(),
     );
     let sites = scanner.scan(&slides);
 
@@ -141,7 +147,7 @@ fn ppt_e2e_tianqi_report() {
     let slides = ppt_reader::parse_pptx(&input).expect("Failed to parse pptx");
     let scanner = PptScanner::new(
         ColumnMatcher::new(vec![]),
-        PatternRegistry::builtin().unwrap(),
+        PatternRegistry::builtin(config_dir()).unwrap(),
     );
     let sites = scanner.scan(&slides);
     if sites.is_empty() {

@@ -3,9 +3,13 @@ use std::path::Path;
 
 use finance_mask_core::patterns::PatternRegistry;
 
+fn config_dir() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("config").leak()
+}
+
 #[test]
 fn builtin_rules_load_and_scan_amount() {
-    let reg = PatternRegistry::builtin().unwrap();
+    let reg = PatternRegistry::builtin(config_dir()).unwrap();
     assert!(!reg.rules().is_empty());
     let hits = reg.scan("本项目总投资 1,234,567.89 元");
     assert!(
@@ -17,7 +21,7 @@ fn builtin_rules_load_and_scan_amount() {
 
 #[test]
 fn negative_lookahead_percent_not_matched() {
-    let reg = PatternRegistry::builtin().unwrap();
+    let reg = PatternRegistry::builtin(config_dir()).unwrap();
     // "12,345.00%" 是百分比，不应命中金额规则（(?!%) 前瞻语义）
     let hits = reg.scan("增长率 12,345.00% 完成");
     assert!(!hits.iter().any(|(_, m)| m.contains("12,345.00")));
@@ -25,7 +29,7 @@ fn negative_lookahead_percent_not_matched() {
 
 #[test]
 fn builtin_registry_loads_nine_rules_in_type_map_order() {
-    let reg = PatternRegistry::builtin().unwrap();
+    let reg = PatternRegistry::builtin(config_dir()).unwrap();
     let names: Vec<&str> = reg.rules().iter().map(|r| r.name.as_str()).collect();
     // 加载顺序 = patterns.py type_map 顺序（amount→entity→person→account），
     // site_id 生成顺序依赖该次序，差分测试靠它对齐
@@ -49,7 +53,7 @@ fn builtin_registry_loads_nine_rules_in_type_map_order() {
 fn builtin_scan_hits_match_python_oracle() {
     // 命中清单与 Python oracle（patterns.py scan_text）逐条核对过（2026-09-06）：
     // 含规则次序、命中次序、命中串完全一致
-    let reg = PatternRegistry::builtin().unwrap();
+    let reg = PatternRegistry::builtin(config_dir()).unwrap();
     assert!(reg.scan("").is_empty()); // 空文本直接返回（对应 scan_text 的 if not text）
 
     let hits = reg.scan("本项目总投资 1,234,567.89 元");

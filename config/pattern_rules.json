@@ -32,8 +32,13 @@
     "entity": [
       {
         "name": "entity_chinese",
-        "pattern": "(天齐锂业(?:股份有限公司)?|格林布什|措拉|奎纳|四川措拉)",
+        "pattern": ".+(公司|集团|银行|证券|基金|有限公司)",
         "description": "中文机构名"
+      },
+      {
+        "name": "entity_dict",
+        "dict_path": "entity_dict.txt",
+        "description": "字典实体（从txt文件加载，每行一个实体）"
       },
       {
         "name": "entity_english",

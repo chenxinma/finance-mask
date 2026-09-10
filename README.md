@@ -9,6 +9,7 @@
 - **双表类型自动识别**：通过 Rust 动态库自动区分 Data 型（表头+数据的 DataFrame）和 Form 型（key-value 表单）表格，采用不同扫描策略
 - **列头定位扫描**：匹配列头名称（精确/正则），定位整列数据行；支持多行合并表头
 - **全文正则扫描**：兜底扫描全部单元格文本，识别金额、机构名、银行卡号、合同号等
+- **字典实体匹配**：支持从 txt 字典文件加载实体名称（每行一个），使用 Aho-Corasick 算法 O(n) 高效匹配，适合万级词条场景；字典匹配优先级高于正则匹配
 - **非数据区域扫描**：Data 型表格中表头之前（公司名称、表格标题）和数据之后（注释信息）的文本也会被识别和脱敏
 - **PPT 备注扫描**：自动扫描幻灯片备注中的敏感内容
 
@@ -169,12 +170,32 @@ finance-mask redact -i <输入> [-s <策略.yaml> | --default-policy] -o <输出
 {
   "rules": {
     "amount":   [{ "name": "...", "pattern": "...", "description": "..." }],
-    "entity":   [{ "name": "...", "pattern": "...", "description": "..." }],
+    "entity":   [
+      { "name": "entity_chinese", "pattern": ".+(公司|集团|银行|证券|基金|有限公司)", "description": "中文机构名" },
+      { "name": "entity_dict", "dict_path": "entity_dict.txt", "description": "字典实体" },
+      { "name": "entity_english", "pattern": "[A-Z][A-Za-z0-9]{1,14}(公司|集团|银行|证券|基金|有限公司)", "description": "英文机构名" }
+    ],
     "person":   [],
     "account":  [{ "name": "...", "pattern": "...", "description": "..." }]
   }
 }
 ```
+
+**字典规则**：当 `dict_path` 非空时，从指定 txt 文件加载实体词条（每行一个），使用 Aho-Corasick 算法匹配。字典匹配优先级高于正则匹配——若同一文本位置被字典命中，正则规则将跳过该区域。
+
+### config/entity_dict.txt — 实体字典
+
+每行一个实体名称，用于字典匹配：
+
+```
+天齐锂业
+格林布什
+措拉
+奎纳
+四川措拉
+```
+
+> 字典文件修改后无需重新编译，运行时自动读取最新内容。
 
 ## 差分脱敏策略
 
@@ -225,7 +246,8 @@ finance_mask/
 │       └── file_utils.py        #   文件遍历、哈希等工具
 ├── config/
 │   ├── column_rules.json        # 列头规则配置
-│   └── pattern_rules.json       # 正则规则配置
+│   ├── pattern_rules.json       # 正则规则配置
+│   └── entity_dict.txt          # 实体字典（每行一个实体）
 ├── lib/
 │   └── layout_view.dll          # Rust 表格类型识别动态库
 ├── examples/
