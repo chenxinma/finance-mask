@@ -2,8 +2,8 @@ metadata:
   version: '1.0'
   source_file: 天齐锂业2026年半年度利润表.xlsx
   source_hash: d5199ee99d821cf44ce14c45cc5a17b44f5cc1632a392bfb4a389ae79293658c
-  generated_at: 2026-09-10T11:15:18.381837
-  total_sites: 2
+  generated_at: 2026-09-10T17:20:18.079244
+  total_sites: 4
 column_rules:
 - match_type: exact
   pattern: 2026年上半年
@@ -23,7 +23,19 @@ sites:
     type: excel
     sheet: 合并利润表
     cell: A1
-  original_value: 天齐锂业股份有限公司  # entity: 天齐锂业股份有限公司
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: sheet_合并利润表_A37
+  location:
+    type: excel
+    sheet: 合并利润表
+    cell: A37
+  original_value: 注：税金及附加、其他收益、公允价值变动收益、营业外支出、利息费用/利息收入等为根据财报公开信息估算的辅助项，核心数据（营业收入、营业成本、归母净利润、所得税费用等）均来自公司  # entity: 注：税金及附加、其他收益、公允价值变动收益、营业外支出、利息
   detected_type: entity
   discovered_by: fulltext_scan
   enabled: true
@@ -36,6 +48,18 @@ sites:
     sheet: 合并利润表
     cell: A38
   original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: sheet_合并利润表_A39
+  location:
+    type: excel
+    sheet: 合并利润表
+    cell: A39
+  original_value: 实际数据以公司  # entity: 实际数据以公司
   detected_type: entity
   discovered_by: fulltext_scan
   enabled: true

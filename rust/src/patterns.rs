@@ -24,7 +24,9 @@ pub struct PatternRule {
 
 #[derive(Debug)]
 enum CompiledRule {
+    #[allow(dead_code)]
     Regex { pattern: String, compiled: Regex },
+    #[allow(dead_code)]
     Dict { words: Vec<String>, ac: AhoCorasick },
 }
 
