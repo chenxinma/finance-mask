@@ -1,0 +1,30 @@
+metadata:
+  version: '1.0'
+  source_file: 测试.pptx
+  source_hash: 10f4217423103c9c301e20a4b6f456196240933acd3d319b9f639fccfe677574
+  generated_at: 2026-09-07T16:57:50.399843
+  total_sites: 2
+sites:
+- site_id: slide_1_0
+  location:
+    type: ppt
+    slide: 1
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_1_0
+  location:
+    type: ppt
+    slide: 1
+  original_value: '100000000'  # amount: 100000000
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2

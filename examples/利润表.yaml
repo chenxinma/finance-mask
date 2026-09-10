@@ -1,0 +1,44 @@
+metadata:
+  version: '1.0'
+  source_file: 天齐锂业2026年半年度利润表.xlsx
+  source_hash: d5199ee99d821cf44ce14c45cc5a17b44f5cc1632a392bfb4a389ae79293658c
+  generated_at: 2026-09-09T21:52:05.322141
+  total_sites: 2
+column_rules:
+- match_type: exact
+  pattern: 2026年上半年
+  action: perturb
+  params:
+    percentage: 10
+  detected_type: amount
+- match_type: exact
+  pattern: 2025年上半年
+  action: perturb
+  params:
+    percentage: 10
+  detected_type: amount
+sites:
+- site_id: sheet_合并利润表_A1
+  location:
+    type: excel
+    sheet: 合并利润表
+    cell: A1
+  original_value: 天齐锂业股份有限公司  # entity: 天齐锂业股份有限公司
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: sheet_合并利润表_A38
+  location:
+    type: excel
+    sheet: 合并利润表
+    cell: A38
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司

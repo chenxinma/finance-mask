@@ -1,0 +1,1492 @@
+metadata:
+  version: '1.0'
+  source_file: 天齐锂业2026年半年度财务报告.pptx
+  source_hash: 84ccac872c13cfe0e9c7b0f43c35570bd2f41f7db983c3d7415f6cb7adb7d0b6
+  generated_at: 2026-09-09T21:59:15.767726
+  total_sites: 116
+sites:
+- site_id: slide_1_4
+  location:
+    type: ppt
+    slide: 1
+    shape_id: TextBox 4
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_1
+  location:
+    type: ppt
+    slide: 1
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_2_6
+  location:
+    type: ppt
+    slide: 2
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_2
+  location:
+    type: ppt
+    slide: 2
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_3
+  location:
+    type: ppt
+    slide: 3
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_4_6
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 6
+  original_value: 122.42亿元  # amount: 122.42亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_6
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 6
+  original_value: 42.42亿元  # amount: 42.42亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_6
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_4_11
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 11
+  original_value: 122.42亿元  # amount: 122.42亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_12
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 12
+  original_value: 122.42亿  # amount: 122.42亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_17
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 17
+  original_value: 42.42亿元  # amount: 42.42亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_18
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 18
+  original_value: 42.42亿  # amount: 42.42亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_29
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 29
+  original_value: 22.12亿元  # amount: 22.12亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_30
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 30
+  original_value: 22.12亿  # amount: 22.12亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_32_R2C2
+  location:
+    type: ppt
+    slide: 4
+    shape_id: Table 32
+    table_location: R2C2
+  original_value: 122.42亿元  # amount: 122.42亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_32_R3C2
+  location:
+    type: ppt
+    slide: 4
+    shape_id: Table 32
+    table_location: R3C2
+  original_value: 42.42亿元  # amount: 42.42亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_32_R4C2
+  location:
+    type: ppt
+    slide: 4
+    shape_id: Table 32
+    table_location: R4C2
+  original_value: 42.00亿元  # amount: 42.00亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_32_R5C2
+  location:
+    type: ppt
+    slide: 4
+    shape_id: Table 32
+    table_location: R5C2
+  original_value: 22.12亿元  # amount: 22.12亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_32_R8C2
+  location:
+    type: ppt
+    slide: 4
+    shape_id: Table 32
+    table_location: R8C2
+  original_value: 831.05亿元  # amount: 831.05亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_32_R9C2
+  location:
+    type: ppt
+    slide: 4
+    shape_id: Table 32
+    table_location: R9C2
+  original_value: 483.43亿元  # amount: 483.43亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_4_33
+  location:
+    type: ppt
+    slide: 4
+    shape_id: TextBox 33
+  original_value: 831亿元  # amount: 831亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_4
+  location:
+    type: ppt
+    slide: 4
+    shape_id: notes
+    table_location: notes
+  original_value: 122.42亿元  # amount: 122.42亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_4
+  location:
+    type: ppt
+    slide: 4
+    shape_id: notes
+    table_location: notes
+  original_value: 42.42亿元  # amount: 42.42亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_4
+  location:
+    type: ppt
+    slide: 4
+    shape_id: notes
+    table_location: notes
+  original_value: 31万  # amount: 31万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_4
+  location:
+    type: ppt
+    slide: 4
+    shape_id: notes
+    table_location: notes
+  original_value: 22.12亿元  # amount: 22.12亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_4
+  location:
+    type: ppt
+    slide: 4
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_5_7
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 7
+  original_value: 831亿元  # amount: 831亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_5_7
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 7
+  original_value: 483亿元  # amount: 483亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_5_7
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 7
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_5_11
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 11
+  original_value: 831.05亿元  # amount: 831.05亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_5_15
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 15
+  original_value: 483.43亿元  # amount: 483.43亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_5_15
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 15
+  original_value: 42亿  # amount: 42亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_5_23
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 23
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_5_23
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 23
+  original_value: 措拉  # entity: 措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_5_25
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 25
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_5_25
+  location:
+    type: ppt
+    slide: 5
+    shape_id: TextBox 25
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_5
+  location:
+    type: ppt
+    slide: 5
+    shape_id: notes
+    table_location: notes
+  original_value: 831.05亿元  # amount: 831.05亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_5
+  location:
+    type: ppt
+    slide: 5
+    shape_id: notes
+    table_location: notes
+  original_value: 483.43亿元  # amount: 483.43亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_5
+  location:
+    type: ppt
+    slide: 5
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_6
+  location:
+    type: ppt
+    slide: 6
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_7_6
+  location:
+    type: ppt
+    slide: 7
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_7_9
+  location:
+    type: ppt
+    slide: 7
+    shape_id: TextBox 9
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_7_11
+  location:
+    type: ppt
+    slide: 7
+    shape_id: TextBox 11
+  original_value: 51.22亿元  # amount: 51.22亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_7_11
+  location:
+    type: ppt
+    slide: 7
+    shape_id: TextBox 11
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_7_18
+  location:
+    type: ppt
+    slide: 7
+    shape_id: TextBox 18
+  original_value: 71.01亿元  # amount: 71.01亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_7_22
+  location:
+    type: ppt
+    slide: 7
+    shape_id: TextBox 22
+  original_value: 12.26万  # amount: 12.26万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_7
+  location:
+    type: ppt
+    slide: 7
+    shape_id: notes
+    table_location: notes
+  original_value: 51.22亿元  # amount: 51.22亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_7
+  location:
+    type: ppt
+    slide: 7
+    shape_id: notes
+    table_location: notes
+  original_value: 71.01亿元  # amount: 71.01亿元
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_7
+  location:
+    type: ppt
+    slide: 7
+    shape_id: notes
+    table_location: notes
+  original_value: 122亿  # amount: 122亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_7
+  location:
+    type: ppt
+    slide: 7
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_7
+  location:
+    type: ppt
+    slide: 7
+    shape_id: notes
+    table_location: notes
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_8_6
+  location:
+    type: ppt
+    slide: 8
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_8_8_R2C4
+  location:
+    type: ppt
+    slide: 8
+    shape_id: Table 8
+    table_location: R2C4
+  original_value: 74.19%  # amount: 74.19%
+  detected_type: amount
+  discovered_by: column_rule
+  enabled: true
+  action: mask
+- site_id: slide_8_8_R3C4
+  location:
+    type: ppt
+    slide: 8
+    shape_id: Table 8
+    table_location: R3C4
+  original_value: 57.35%  # amount: 57.35%
+  detected_type: amount
+  discovered_by: column_rule
+  enabled: true
+  action: mask
+- site_id: slide_8_8_R4C4
+  location:
+    type: ppt
+    slide: 8
+    shape_id: Table 8
+    table_location: R4C4
+  original_value: —  # amount: —
+  detected_type: amount
+  discovered_by: column_rule
+  enabled: true
+  action: mask
+- site_id: slide_8_8_R5C4
+  location:
+    type: ppt
+    slide: 8
+    shape_id: Table 8
+    table_location: R5C4
+  original_value: —  # amount: —
+  detected_type: amount
+  discovered_by: column_rule
+  enabled: true
+  action: mask
+- site_id: notes_8
+  location:
+    type: ppt
+    slide: 8
+    shape_id: notes
+    table_location: notes
+  original_value: 51亿  # amount: 51亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_8
+  location:
+    type: ppt
+    slide: 8
+    shape_id: notes
+    table_location: notes
+  original_value: 71亿  # amount: 71亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_8
+  location:
+    type: ppt
+    slide: 8
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_9
+  location:
+    type: ppt
+    slide: 9
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_10_6
+  location:
+    type: ppt
+    slide: 10
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_10_6
+  location:
+    type: ppt
+    slide: 10
+    shape_id: TextBox 6
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_10_12
+  location:
+    type: ppt
+    slide: 10
+    shape_id: TextBox 12
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_10
+  location:
+    type: ppt
+    slide: 10
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_10
+  location:
+    type: ppt
+    slide: 10
+    shape_id: notes
+    table_location: notes
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_11
+  location:
+    type: ppt
+    slide: 11
+    shape_id: notes
+    table_location: notes
+  original_value: 122亿  # amount: 122亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_11
+  location:
+    type: ppt
+    slide: 11
+    shape_id: notes
+    table_location: notes
+  original_value: 42亿  # amount: 42亿
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_11
+  location:
+    type: ppt
+    slide: 11
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_12_4
+  location:
+    type: ppt
+    slide: 12
+    shape_id: TextBox 4
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_12_6
+  location:
+    type: ppt
+    slide: 12
+    shape_id: TextBox 6
+  original_value: 214万  # amount: 214万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_12_6
+  location:
+    type: ppt
+    slide: 12
+    shape_id: TextBox 6
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_12_8
+  location:
+    type: ppt
+    slide: 12
+    shape_id: TextBox 8
+  original_value: 214万  # amount: 214万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_12_8
+  location:
+    type: ppt
+    slide: 12
+    shape_id: TextBox 8
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_12_16
+  location:
+    type: ppt
+    slide: 12
+    shape_id: TextBox 16
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_12
+  location:
+    type: ppt
+    slide: 12
+    shape_id: notes
+    table_location: notes
+  original_value: 214万  # amount: 214万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_12
+  location:
+    type: ppt
+    slide: 12
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_12
+  location:
+    type: ppt
+    slide: 12
+    shape_id: notes
+    table_location: notes
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_13_6
+  location:
+    type: ppt
+    slide: 13
+    shape_id: TextBox 6
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_13_6
+  location:
+    type: ppt
+    slide: 13
+    shape_id: TextBox 6
+  original_value: 措拉  # entity: 措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_13
+  location:
+    type: ppt
+    slide: 13
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_14_6
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_14_6
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 6
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_14_6
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 6
+  original_value: 四川措拉  # entity: 四川措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_14_9
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 9
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_14_11
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 11
+  original_value: 214 万  # amount: 214 万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_14_17
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 17
+  original_value: 措拉  # entity: 措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_14_18
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 18
+  original_value: 63.24 万  # amount: 63.24 万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_14_21
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 21
+  original_value: 63.24万  # amount: 63.24万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_14_25
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 25
+  original_value: 12.26 万  # amount: 12.26 万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: slide_14_28
+  location:
+    type: ppt
+    slide: 14
+    shape_id: TextBox 28
+  original_value: 12.26万  # amount: 12.26万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_14
+  location:
+    type: ppt
+    slide: 14
+    shape_id: notes
+    table_location: notes
+  original_value: 214万  # amount: 214万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_14
+  location:
+    type: ppt
+    slide: 14
+    shape_id: notes
+    table_location: notes
+  original_value: 63.24万  # amount: 63.24万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_14
+  location:
+    type: ppt
+    slide: 14
+    shape_id: notes
+    table_location: notes
+  original_value: 12.26万  # amount: 12.26万
+  detected_type: amount
+  discovered_by: fulltext_scan
+  enabled: true
+  action: precision
+  params:
+    unit: million
+    decimal_places: 2
+- site_id: notes_14
+  location:
+    type: ppt
+    slide: 14
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_14
+  location:
+    type: ppt
+    slide: 14
+    shape_id: notes
+    table_location: notes
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_14
+  location:
+    type: ppt
+    slide: 14
+    shape_id: notes
+    table_location: notes
+  original_value: 措拉  # entity: 措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_15_6
+  location:
+    type: ppt
+    slide: 15
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_15
+  location:
+    type: ppt
+    slide: 15
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_16
+  location:
+    type: ppt
+    slide: 16
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_17_6
+  location:
+    type: ppt
+    slide: 17
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_17_16
+  location:
+    type: ppt
+    slide: 17
+    shape_id: TextBox 16
+  original_value: 奎纳  # entity: 奎纳
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_17
+  location:
+    type: ppt
+    slide: 17
+    shape_id: notes
+    table_location: notes
+  original_value: 奎纳  # entity: 奎纳
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_18_6
+  location:
+    type: ppt
+    slide: 18
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_18_6
+  location:
+    type: ppt
+    slide: 18
+    shape_id: TextBox 6
+  original_value: 措拉  # entity: 措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_18_20
+  location:
+    type: ppt
+    slide: 18
+    shape_id: TextBox 20
+  original_value: 四川措拉  # entity: 四川措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_18_22
+  location:
+    type: ppt
+    slide: 18
+    shape_id: TextBox 22
+  original_value: 措拉  # entity: 措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_18_36
+  location:
+    type: ppt
+    slide: 18
+    shape_id: TextBox 36
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_18_36
+  location:
+    type: ppt
+    slide: 18
+    shape_id: TextBox 36
+  original_value: 奎纳  # entity: 奎纳
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_18_36
+  location:
+    type: ppt
+    slide: 18
+    shape_id: TextBox 36
+  original_value: 措拉  # entity: 措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_18_38
+  location:
+    type: ppt
+    slide: 18
+    shape_id: TextBox 38
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_18
+  location:
+    type: ppt
+    slide: 18
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_18
+  location:
+    type: ppt
+    slide: 18
+    shape_id: notes
+    table_location: notes
+  original_value: 措拉  # entity: 措拉
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_18
+  location:
+    type: ppt
+    slide: 18
+    shape_id: notes
+    table_location: notes
+  original_value: 格林布什  # entity: 格林布什
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_18
+  location:
+    type: ppt
+    slide: 18
+    shape_id: notes
+    table_location: notes
+  original_value: 奎纳  # entity: 奎纳
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: slide_19_6
+  location:
+    type: ppt
+    slide: 19
+    shape_id: TextBox 6
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司
+- site_id: notes_19
+  location:
+    type: ppt
+    slide: 19
+    shape_id: notes
+    table_location: notes
+  original_value: 天齐锂业  # entity: 天齐锂业
+  detected_type: entity
+  discovered_by: fulltext_scan
+  enabled: true
+  action: alias
+  params:
+    prefix: 公司

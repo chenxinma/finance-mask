@@ -1,0 +1,695 @@
+{
+  "file": "天齐锂业2026年半年度利润表.xlsx",
+  "source_path": "天齐锂业2026年半年度利润表.xlsx",
+  "output_file": "天齐锂业2026年半年度利润表_脱敏.xlsx",
+  "operator": "chenxin.ma",
+  "timestamp": "2026-09-09T14:58:47.198347800+00:00",
+  "file_hash": "5862fb6baefd2c8b6b79fa6d30098ea021c8658d4ab0bf7407b117f94dd7fdf5",
+  "total_changes": 57,
+  "total_errors": 0,
+  "changes": [
+    {
+      "site_id": "合并利润表_B7",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B7",
+        "column": "2026年上半年"
+      },
+      "original": "12242243203.99",
+      "redacted": "11,571,100,811.79",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B8",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B8",
+        "column": "2026年上半年"
+      },
+      "original": "7524766671.11",
+      "redacted": "7,357,623,597.00",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B9",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B9",
+        "column": "2026年上半年"
+      },
+      "original": "4359672403.18",
+      "redacted": "4,356,518,706.12",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B10",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B10",
+        "column": "2026年上半年"
+      },
+      "original": "2700000000",
+      "redacted": "2,968,404,267.24",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B11",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B11",
+        "column": "2026年上半年"
+      },
+      "original": "4314207.68",
+      "redacted": "4,611,154.58",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B12",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B12",
+        "column": "2026年上半年"
+      },
+      "original": "274407818.99",
+      "redacted": "279,811,840.01",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B13",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B13",
+        "column": "2026年上半年"
+      },
+      "original": "25145854.78",
+      "redacted": "27,374,635.79",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B14",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B14",
+        "column": "2026年上半年"
+      },
+      "original": "-161226386.48",
+      "redacted": "-161,935,958.89",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B15",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B15",
+        "column": "2026年上半年"
+      },
+      "original": "65000000",
+      "redacted": "65,567,316.70",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B16",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B16",
+        "column": "2026年上半年"
+      },
+      "original": "220000000",
+      "redacted": "235,184,856.26",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B17",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B17",
+        "column": "2026年上半年"
+      },
+      "original": "120000000",
+      "redacted": "109,371,577.45",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B18",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B18",
+        "column": "2026年上半年"
+      },
+      "original": "1499551300.12",
+      "redacted": "1,619,456,656.57",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B19",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B19",
+        "column": "2026年上半年"
+      },
+      "original": "50000000",
+      "redacted": "50,380,201.44",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B20",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B20",
+        "column": "2026年上半年"
+      },
+      "original": "-51124605.81",
+      "redacted": "-55,984,251.15",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B21",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B21",
+        "column": "2026年上半年"
+      },
+      "original": "112541558.68",
+      "redacted": "109,589,265.89",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B22",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B22",
+        "column": "2026年上半年"
+      },
+      "original": "3976760.77",
+      "redacted": "3,751,046.91",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B23",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B23",
+        "column": "2026年上半年"
+      },
+      "original": "6774874319.599999",
+      "redacted": "6,165,493,995.72",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B24",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B24",
+        "column": "2026年上半年"
+      },
+      "original": "13394916.93",
+      "redacted": "12,655,160.35",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B25",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B25",
+        "column": "2026年上半年"
+      },
+      "original": "50000000",
+      "redacted": "50,380,201.44",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B26",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B26",
+        "column": "2026年上半年"
+      },
+      "original": "6738269236.53",
+      "redacted": "6,781,066,783.87",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B27",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B27",
+        "column": "2026年上半年"
+      },
+      "original": "2281591793.66",
+      "redacted": "2,158,749,889.93",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B28",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B28",
+        "column": "2026年上半年"
+      },
+      "original": "4456677442.87",
+      "redacted": "4,568,127,286.37",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B29",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B29",
+        "column": "2026年上半年"
+      },
+      "original": "4242020000.77",
+      "redacted": "4,428,800,234.05",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B30",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B30",
+        "column": "2026年上半年"
+      },
+      "original": "214657442.0999999",
+      "redacted": "204,332,835.54",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B31",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B31",
+        "column": "2026年上半年"
+      },
+      "original": "-79738137.42",
+      "redacted": "-86,072,860.72",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B32",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B32",
+        "column": "2026年上半年"
+      },
+      "original": "4376939305.45",
+      "redacted": "4,758,599,288.47",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B34",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B34",
+        "column": "2026年上半年"
+      },
+      "original": "2.51",
+      "redacted": "2.50",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_B35",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "B35",
+        "column": "2026年上半年"
+      },
+      "original": "2.46",
+      "redacted": "2.39",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C7",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C7",
+        "column": "2025年上半年"
+      },
+      "original": "4832680736.98",
+      "redacted": "4,900,583,461.40",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C8",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C8",
+        "column": "2025年上半年"
+      },
+      "original": "3551356330.38",
+      "redacted": "3,528,784,772.79",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C9",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C9",
+        "column": "2025年上半年"
+      },
+      "original": "2912692272.3",
+      "redacted": "3,195,093,670.54",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C10",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C10",
+        "column": "2025年上半年"
+      },
+      "original": "80000000",
+      "redacted": "80,772,600.64",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C11",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C11",
+        "column": "2025年上半年"
+      },
+      "original": "4908784.23",
+      "redacted": "5,110,262.44",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C12",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C12",
+        "column": "2025年上半年"
+      },
+      "original": "267475914.36",
+      "redacted": "291,185,093.20",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C13",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C13",
+        "column": "2025年上半年"
+      },
+      "original": "18429820.6",
+      "redacted": "16,616,208.04",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C14",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C14",
+        "column": "2025年上半年"
+      },
+      "original": "-267849538.89",
+      "redacted": "-270,230,317.03",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C15",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C15",
+        "column": "2025年上半年"
+      },
+      "original": "45000000",
+      "redacted": "47,092,029.64",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C16",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C16",
+        "column": "2025年上半年"
+      },
+      "original": "150000000",
+      "redacted": "158,962,092.84",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C17",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C17",
+        "column": "2025年上半年"
+      },
+      "original": "80000000",
+      "redacted": "80,772,600.64",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C18",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C18",
+        "column": "2025年上半年"
+      },
+      "original": "204662278.66",
+      "redacted": "215,423,352.25",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C19",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C19",
+        "column": "2025年上半年"
+      },
+      "original": "30000000",
+      "redacted": "28,122,764.14",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C20",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C20",
+        "column": "2025年上半年"
+      },
+      "original": "7401223.55",
+      "redacted": "7,509,861.03",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C21",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C21",
+        "column": "2025年上半年"
+      },
+      "original": "-185162644.33",
+      "redacted": "-195,443,313.72",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C22",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C22",
+        "column": "2025年上半年"
+      },
+      "original": "-510490.54",
+      "redacted": "-509,513.02",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C23",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C23",
+        "column": "2025年上半年"
+      },
+      "original": "1953413851.719999",
+      "redacted": "2,118,973,968.57",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C24",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C24",
+        "column": "2025年上半年"
+      },
+      "original": "6106253.58",
+      "redacted": "6,239,637.17",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C25",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C25",
+        "column": "2025年上半年"
+      },
+      "original": "20000000",
+      "redacted": "19,060,068.67",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C26",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C26",
+        "column": "2025年上半年"
+      },
+      "original": "1939520105.299999",
+      "redacted": "1,807,349,711.56",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C27",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C27",
+        "column": "2025年上半年"
+      },
+      "original": "522333204.97",
+      "redacted": "502,429,549.38",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C28",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C28",
+        "column": "2025年上半年"
+      },
+      "original": "1417186900.329999",
+      "redacted": "1,470,301,604.74",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C29",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C29",
+        "column": "2025年上半年"
+      },
+      "original": "84410596",
+      "redacted": "76,588,012.87",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C31",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C31",
+        "column": "2025年上半年"
+      },
+      "original": "49699370.45",
+      "redacted": "50,633,809.32",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C32",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C32",
+        "column": "2025年上半年"
+      },
+      "original": "1466886270.779999",
+      "redacted": "1,322,409,500.31",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C34",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C34",
+        "column": "2025年上半年"
+      },
+      "original": "0.05",
+      "redacted": "0.05",
+      "action": "perturb"
+    },
+    {
+      "site_id": "合并利润表_C35",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "C35",
+        "column": "2025年上半年"
+      },
+      "original": "0.05",
+      "redacted": "0.05",
+      "action": "perturb"
+    },
+    {
+      "site_id": "sheet_合并利润表_A1",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "A1"
+      },
+      "original": "天齐锂业股份有限公司",
+      "redacted": "[公司A]",
+      "action": "alias"
+    },
+    {
+      "site_id": "sheet_合并利润表_A38",
+      "location": {
+        "type": "excel",
+        "sheet": "合并利润表",
+        "cell": "A38"
+      },
+      "original": "天齐锂业",
+      "redacted": "[公司B]",
+      "action": "alias"
+    }
+  ],
+  "errors": []
+}
