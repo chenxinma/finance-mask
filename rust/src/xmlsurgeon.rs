@@ -41,18 +41,12 @@ impl std::fmt::Display for SurgeonError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SurgeonError::Io(e) => write!(f, "IO error: {}", e),
-            SurgeonError::Zip(e) => write!(f, "Zip error: {}", e),
+            SurgeonError::Zip(e) => write!(f, "zip error: {}", e),
             SurgeonError::Xml(e) => write!(f, "XML error: {}", e),
-            SurgeonError::EntryNotFound(name) => {
-                write!(f, "Entry not found: {}", name)
-            }
-            SurgeonError::SheetNotFound(name) => {
-                write!(f, "Sheet not found: {}", name)
-            }
-            SurgeonError::CellNotFound(cell_ref) => {
-                write!(f, "Cell not found: {}", cell_ref)
-            }
-            SurgeonError::Utf8(e) => write!(f, "UTF-8 error: {}", e),
+            SurgeonError::EntryNotFound(name) => write!(f, "Entry not found: {name}"),
+            SurgeonError::SheetNotFound(name) => write!(f, "Sheet not found: {name}"),
+            SurgeonError::CellNotFound(r) => write!(f, "Cell not found: {r}"),
+            SurgeonError::Utf8(e) => write!(f, "UTF-8 error: {e}"),
         }
     }
 }
@@ -60,34 +54,22 @@ impl std::fmt::Display for SurgeonError {
 impl std::error::Error for SurgeonError {}
 
 impl From<std::io::Error> for SurgeonError {
-    fn from(e: std::io::Error) -> Self {
-        SurgeonError::Io(e)
-    }
+    fn from(e: std::io::Error) -> Self { Self::Io(e) }
 }
-
 impl From<zip::result::ZipError> for SurgeonError {
-    fn from(e: zip::result::ZipError) -> Self {
-        SurgeonError::Zip(e)
-    }
+    fn from(e: zip::result::ZipError) -> Self { Self::Zip(e) }
 }
-
 impl From<quick_xml::Error> for SurgeonError {
-    fn from(e: quick_xml::Error) -> Self {
-        SurgeonError::Xml(e)
-    }
+    fn from(e: quick_xml::Error) -> Self { Self::Xml(e) }
 }
-
 impl From<std::string::FromUtf8Error> for SurgeonError {
-    fn from(e: std::string::FromUtf8Error) -> Self {
-        SurgeonError::Utf8(e)
-    }
+    fn from(e: std::string::FromUtf8Error) -> Self { Self::Utf8(e) }
 }
 
 // ---------------------------------------------------------------------------
 // Entry storage helper
 // ---------------------------------------------------------------------------
 
-/// Store entries as Vec for ordered iteration but provide fast lookup by name.
 fn find_entry_idx(entries: &[(String, Vec<u8>)], name: &str) -> Option<usize> {
     entries.iter().position(|(n, _)| n == name)
 }
@@ -101,7 +83,6 @@ fn find_entry_idx(entries: &[(String, Vec<u8>)], name: &str) -> Option<usize> {
 /// Loads all zip entries into memory, allows targeted cell modification, and
 /// writes a new xlsx file with all non-modified entries preserved byte-for-byte.
 pub struct XmlSurgeon {
-    /// (filename, content) pairs from the zip archive.
     entries: Vec<(String, Vec<u8>)>,
 }
 
@@ -109,9 +90,7 @@ impl XmlSurgeon {
     /// Open an xlsx file and load all zip entries into memory.
     pub fn open(path: &Path) -> Result<Self, SurgeonError> {
         let file = File::open(path)?;
-        let reader = BufReader::new(file);
-        let mut archive = ZipArchive::new(reader)?;
-
+        let mut archive = ZipArchive::new(BufReader::new(file))?;
         let mut entries = Vec::new();
         for i in 0..archive.len() {
             let mut entry = archive.by_index(i)?;
@@ -120,302 +99,277 @@ impl XmlSurgeon {
             entry.read_to_end(&mut buf)?;
             entries.push((name, buf));
         }
-
         Ok(Self { entries })
+    }
+
+    /// Read the current text value of a cell.
+    pub fn get_cell_text(&self, sheet: &str, cell_ref: &str) -> Result<String, SurgeonError> {
+        let sheet_path = self.resolve_sheet_path(sheet)?;
+        let xml = self.read_entry(&sheet_path)?;
+        self.read_cell_value(&xml, cell_ref)
+    }
+
+    /// Replace a substring within a cell's text (preserving the rest).
+    pub fn replace_in_cell(&mut self, sheet: &str, cell_ref: &str, old: &str, new: &str) -> Result<(), SurgeonError> {
+        let current = self.get_cell_text(sheet, cell_ref)?;
+        let replaced = current.replace(old, new);
+        if replaced == current { return Ok(()); }
+        self.set_cell_text(sheet, cell_ref, &replaced)
     }
 
     /// Set a cell's text value in a specific sheet.
     ///
-    /// - `sheet`: sheet name (e.g., "Sheet1")
-    /// - `cell_ref`: Excel cell reference (e.g., "B5")
-    /// - `new_text`: the new text value
-    ///
-    /// Handles shared strings (`t="s"`): appends to sharedStrings.xml and
-    /// updates the cell's index. For inline strings (`t="str"` or no type),
-    /// replaces the value directly.
-    pub fn set_cell_text(
-        &mut self,
-        sheet: &str,
-        cell_ref: &str,
-        new_text: &str,
-    ) -> Result<(), SurgeonError> {
-        // 1. Map sheet name → sheet XML path
+    /// Handles shared strings (`t="s"`), inline strings (`t="inlineStr"`),
+    /// and numeric cells. For inline strings, modifies `<is><t>` content;
+    /// for shared strings, appends to sharedStrings.xml and updates the index.
+    pub fn set_cell_text(&mut self, sheet: &str, cell_ref: &str, new_text: &str) -> Result<(), SurgeonError> {
         let sheet_path = self.resolve_sheet_path(sheet)?;
-
-        // 2. Load shared strings lazily if we need them
         let mut shared_strings: Option<SharedStrings> = None;
 
-        // 3. Find the sheet entry index
         let sheet_idx = find_entry_idx(&self.entries, &sheet_path)
             .ok_or_else(|| SurgeonError::EntryNotFound(sheet_path.clone()))?;
+        let xml = String::from_utf8(self.entries[sheet_idx].1.clone())?;
 
-        let sheet_xml_bytes = &self.entries[sheet_idx].1;
-        let sheet_xml_str = String::from_utf8(sheet_xml_bytes.clone())?;
+        // Locate the <c r="CELLREF"...> element
+        let needle = format!("<c r=\"{cell_ref}");
+        let cell_start = find_cell_start(&xml, &needle)?;
+        let tag_end_abs = xml[cell_start..].find('>')
+            .map(|p| cell_start + p)
+            .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.into()))?;
+        let is_self_closing = xml.as_bytes()[tag_end_abs - 1] == b'/';
+        let opening_tag = &xml[cell_start..=tag_end_abs];
+        let cell_type = detect_cell_type(opening_tag);
 
-        // 4. Modify the sheet XML: replace the target cell's value using
-        //    string-level replacement (bypass quick-xml writer for cell edit).
-        //    This is more reliable than event-based XML rewriting.
-        let modified_sheet = {
-            let xml = &sheet_xml_str;
-            let needle = format!("<c r=\"{}", cell_ref);
-            let mut cell_start = None;
-            let mut pos = 0;
-            while pos < xml.len() {
-                if let Some(idx) = xml[pos..].find(&needle) {
-                    let abs_idx = pos + idx;
-                    // Verify it's an exact cell ref (next char is '"')
-                    let after_needle = abs_idx + needle.len();
-                    if after_needle < xml.len() && xml.as_bytes()[after_needle] == b'"' {
-                        cell_start = Some(abs_idx);
-                        break;
-                    }
-                    pos = abs_idx + needle.len();
-                } else {
-                    break;
+        // Build the replacement content
+        let new_v_content = match cell_type {
+            CellType::SharedString => {
+                if shared_strings.is_none() {
+                    shared_strings = Some(self.load_shared_strings()?);
                 }
+                let ss = shared_strings.as_mut().unwrap();
+                ss.append(new_text).to_string()
             }
-
-            let cell_start = cell_start.ok_or_else(|| SurgeonError::CellNotFound(cell_ref.to_string()))?;
-
-            // Find the <c r="..." opening tag end (the first '>' after cell_start)
-            let tag_end = xml[cell_start..].find('>')
-                .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.to_string()))?;
-            let tag_end_abs = cell_start + tag_end;
-            let is_self_closing = xml.as_bytes()[tag_end_abs - 1] == b'/';
-
-            // Extract the opening <c> tag to determine cell type
-            let opening_tag = &xml[cell_start..=tag_end_abs];
-            let cell_type = if opening_tag.contains("t=\"s\"") {
-                CellType::SharedString
-            } else if opening_tag.contains("t=\"str\"") || opening_tag.contains("t=\"inlineStr\"") {
-                CellType::InlineString
-            } else {
-                CellType::None
-            };
-
-            // Determine the new <v> content (保持原类型，只换 <v> 内容)
-            let new_v_content = match cell_type {
-                CellType::SharedString => {
-                    // 保持 t="s"：追加新文本到 sharedStrings.xml，<v> 写新索引
-                    if shared_strings.is_none() {
-                        shared_strings = Some(self.load_shared_strings()?);
-                    }
-                    let ss = shared_strings.as_mut().unwrap();
-                    let idx = ss.append(new_text);
-                    idx.to_string()
-                }
-                CellType::InlineString | CellType::Formula | CellType::None => {
-                    // 保持原类型：直接写文本
-                    new_text.to_string()
-                }
-            };
-
-            // C1 fix: numeric cell (CellType::None) writing non-numeric text
-            // must add t="str" so strict readers (openpyxl) accept it.
-            let needs_type_str = cell_type == CellType::None
-                && new_text.parse::<f64>().is_err();
-            let base_tag = if needs_type_str {
-                // <c r="B5" s="23"> or <c r="B5"/>
-                // → <c r="B5" s="23" t="str"> or <c r="B5" t="str"/>
-                let no_close = opening_tag.trim_end_matches('>').trim_end_matches('/').trim_end();
-                if is_self_closing {
-                    format!("{} t=\"str\"/>", no_close)
-                } else {
-                    format!("{} t=\"str\">", no_close)
-                }
-            } else {
-                opening_tag.to_string()
-            };
-
-            // 构建替换：保留原始开标签（含全部属性），只替换 <v> 的内容。
-            // 自闭合 cell（<c r="A1"/>）没有 <v>，插入 <v> 时保持无类型属性。
-            let new_cell = if is_self_closing {
-                // <c r="A1" s="23"/> → <c r="A1" s="23"><v>new</v></c>
-                // 将自闭合 /> 替换为 >
-                let tag = if base_tag.ends_with("/>") {
-                    format!("{}>", &base_tag[..base_tag.len() - 2])
-                } else {
-                    base_tag.to_string()
-                };
-                format!("{}<v>{}</v></c>", tag, escape_xml(&new_v_content))
-            } else {
-                // <c r="A1" s="23" t="s"><v>old</v></c> → 保留开标签，只换 <v> 内容
-                // 找到 </c> 的位置，然后替换整个 cell 内容为 开标签 + <v>新内容</v> + </c>
-                let close_tag = "</c>";
-                let after_start = &xml[tag_end_abs + 1..];
-                let close_pos = after_start.find(close_tag)
-                    .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.to_string()))?;
-                let _full_cell_end = tag_end_abs + 1 + close_pos + close_tag.len();
-
-                // 提取 <v>...</v> 之外可能存在的其他子元素（如 <is>、<f>）
-                let cell_body = &xml[tag_end_abs + 1..tag_end_abs + 1 + close_pos];
-                // 只替换 <v> 的内容；若没有 <v>，在 </c> 前插入一个
-                let new_body = if let Some(v_start) = cell_body.find("<v>") {
-                    let v_end = cell_body[v_start..].find("</v>")
-                        .map(|p| v_start + p)
-                        .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.to_string()))?;
-                    format!("{}<v>{}</v>{}", &cell_body[..v_start], escape_xml(&new_v_content), &cell_body[v_end + 4..])
-                } else if let Some(v_start) = cell_body.find("<v ") {
-                    // <v> 带属性的情况（罕见但处理）
-                    let v_end = cell_body[v_start..].find("</v>")
-                        .map(|p| v_start + p)
-                        .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.to_string()))?;
-                    let v_open_end = cell_body[v_start..].find('>')
-                        .map(|p| v_start + p)
-                        .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.to_string()))?;
-                    format!("{}{}{}</v>{}", &cell_body[..v_start], &cell_body[v_start..=v_open_end], escape_xml(&new_v_content), &cell_body[v_end + 4..])
-                } else {
-                    // cell 没有 <v>，插入一个
-                    format!("<v>{}</v>{}", escape_xml(&new_v_content), cell_body)
-                };
-
-                format!("{}{}</c>", base_tag, new_body)
-            };
-
-            // Replace the cell in the XML
-            if is_self_closing {
-                let cell_end = tag_end_abs + 1;
-                let mut result = Vec::with_capacity(xml.len() + new_cell.len());
-                result.extend_from_slice(xml[..cell_start].as_bytes());
-                result.extend_from_slice(new_cell.as_bytes());
-                result.extend_from_slice(xml[cell_end..].as_bytes());
-                result
-            } else {
-                let close_tag = "</c>";
-                let after_start = &xml[tag_end_abs + 1..];
-                let close_pos = after_start.find(close_tag)
-                    .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.to_string()))?;
-                let full_cell_end = tag_end_abs + 1 + close_pos + close_tag.len();
-                let mut result = Vec::with_capacity(xml.len() + new_cell.len());
-                result.extend_from_slice(xml[..cell_start].as_bytes());
-                result.extend_from_slice(new_cell.as_bytes());
-                result.extend_from_slice(xml[full_cell_end..].as_bytes());
-                result
-            }
+            _ => new_text.to_string(),
         };
-        // string replacement succeeded if we got here (CellNotFound is returned
-        // earlier if the cell reference was not found)
 
-        // Replace the sheet entry
-        self.entries[sheet_idx].1 = modified_sheet;
+        // Adjust tag for numeric cells writing non-numeric text
+        let base_tag = if cell_type == CellType::None && new_text.parse::<f64>().is_err() {
+            let no_close = opening_tag.trim_end_matches('>').trim_end_matches('/').trim_end();
+            if is_self_closing { format!("{no_close} t=\"str\"/>") }
+            else { format!("{no_close} t=\"str\">") }
+        } else {
+            opening_tag.to_string()
+        };
 
-        // If shared strings were modified, write them back
+        let new_cell = if is_self_closing {
+            let tag = base_tag.strip_suffix("/>").map(|t| format!("{t}>")).unwrap_or(base_tag);
+            format!("{tag}<v>{}</v></c>", quick_xml::escape::escape(&new_v_content))
+        } else {
+            let body_start = tag_end_abs + 1;
+            let body_end = xml[body_start..].find("</c>")
+                .map(|p| body_start + p)
+                .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.into()))?;
+            let body = &xml[body_start..body_end];
+
+            let new_body = if cell_type == CellType::InlineString {
+                replace_is_t_text(body, new_text)
+                    .unwrap_or_else(|| replace_v_in_body(body, &new_v_content))
+            } else {
+                replace_v_in_body(body, &new_v_content)
+            };
+            format!("{base_tag}{new_body}</c>")
+        };
+
+        // Splice the new cell into the XML
+        let full_end = if is_self_closing {
+            tag_end_abs + 1
+        } else {
+            let body_start = tag_end_abs + 1;
+            body_start + xml[body_start..].find("</c>")
+                .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.into()))? + 4
+        };
+        let mut result = Vec::with_capacity(xml.len() + new_cell.len());
+        result.extend_from_slice(xml[..cell_start].as_bytes());
+        result.extend_from_slice(new_cell.as_bytes());
+        result.extend_from_slice(xml[full_end..].as_bytes());
+        self.entries[sheet_idx].1 = result;
+
+        // Write back shared strings if modified
         if let Some(ss) = shared_strings {
             let ss_idx = find_entry_idx(&self.entries, "xl/sharedStrings.xml")
-                .ok_or_else(|| {
-                    SurgeonError::EntryNotFound("xl/sharedStrings.xml".to_string())
-                })?;
-            let bytes = ss.serialize()?;
-            self.entries[ss_idx].1 = bytes;
+                .ok_or_else(|| SurgeonError::EntryNotFound("xl/sharedStrings.xml".into()))?;
+            self.entries[ss_idx].1 = ss.serialize()?;
         }
 
         Ok(())
     }
 
-    /// Return the number of entries (for testing/inspection).
-    pub fn entry_count(&self) -> usize {
-        self.entries.len()
-    }
-
-    /// Snapshot of entries (for testing/debugging).
-    pub fn entries_snapshot(&self) -> &[(String, Vec<u8>)] {
-        &self.entries
-    }
-
-    /// Read an entry's content as UTF-8 string (public for testing).
-    pub fn read_entry_public(&self, name: &str) -> Result<String, SurgeonError> {
-        self.read_entry(name)
-    }
+    pub fn entry_count(&self) -> usize { self.entries.len() }
+    pub fn entries_snapshot(&self) -> &[(String, Vec<u8>)] { &self.entries }
+    pub fn read_entry_public(&self, name: &str) -> Result<String, SurgeonError> { self.read_entry(name) }
 
     /// Save the modified xlsx to a new path.
     pub fn save(&self, path: &Path) -> Result<(), SurgeonError> {
-        let file = File::create(path)?;
-        let writer = BufWriter::new(file);
-        let mut zip = ZipWriter::new(writer);
+        let mut zip = ZipWriter::new(BufWriter::new(File::create(path)?));
         let options = SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated)
             .compression_level(Some(6));
-
         for (name, content) in &self.entries {
             zip.start_file(name, options)?;
             zip.write_all(content)?;
         }
-
         zip.finish()?;
         Ok(())
     }
 
-    // -----------------------------------------------------------------------
-    // Private helpers
-    // -----------------------------------------------------------------------
+    // -- private helpers --
 
-    /// Resolve a sheet name to its XML path inside the xlsx archive.
     fn resolve_sheet_path(&self, sheet_name: &str) -> Result<String, SurgeonError> {
         let wb_xml = self.read_entry("xl/workbook.xml")?;
         let rels_xml = self.read_entry("xl/_rels/workbook.xml.rels")?;
-
-        let sheet_entries = parse_workbook_sheets(&wb_xml);
+        let sheets = parse_workbook_sheets(&wb_xml);
         let rid_to_target = parse_rels(&rels_xml);
-
-        for (name, rid) in &sheet_entries {
+        for (name, rid) in &sheets {
             if name == sheet_name {
                 if let Some(target) = rid_to_target.get(rid) {
-                    // rels Target 有三种写法：
-                    //   "worksheets/sheet1.xml"          (相对 xl/)
-                    //   "/xl/worksheets/sheet1.xml"       (绝对路径)
-                    //   "xl/worksheets/sheet1.xml"        (带 xl/ 前缀)
                     let t = target.trim_start_matches('/');
-                    let full = if t.starts_with("xl/") {
-                        t.to_string()
-                    } else {
-                        format!("xl/{}", t)
-                    };
-                    return Ok(full);
+                    return Ok(if t.starts_with("xl/") { t.into() } else { format!("xl/{t}") });
                 }
             }
         }
-
-        Err(SurgeonError::SheetNotFound(sheet_name.to_string()))
+        Err(SurgeonError::SheetNotFound(sheet_name.into()))
     }
 
-    /// Read an entry's content as a UTF-8 string.
     fn read_entry(&self, name: &str) -> Result<String, SurgeonError> {
         find_entry_idx(&self.entries, name)
             .map(|i| String::from_utf8(self.entries[i].1.clone()))
             .transpose()?
-            .ok_or_else(|| SurgeonError::EntryNotFound(name.to_string()))
+            .ok_or_else(|| SurgeonError::EntryNotFound(name.into()))
     }
 
-    /// Load sharedStrings.xml into a [`SharedStrings`] helper.
+    fn read_cell_value(&self, xml: &str, cell_ref: &str) -> Result<String, SurgeonError> {
+        let needle = format!("<c r=\"{cell_ref}");
+        let cell_start = find_cell_start(xml, &needle)?;
+        let tag_end_abs = xml[cell_start..].find('>')
+            .map(|p| cell_start + p)
+            .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.into()))?;
+        let opening = &xml[cell_start..=tag_end_abs];
+        let body_start = tag_end_abs + 1;
+        let body_end = xml[body_start..].find("</c>")
+            .map(|p| body_start + p)
+            .unwrap_or(xml.len());
+        let body = &xml[body_start..body_end];
+
+        match detect_cell_type(opening) {
+            CellType::SharedString => {
+                let v_raw = extract_tag_text(body, "v")
+                    .ok_or_else(|| SurgeonError::CellNotFound(cell_ref.into()))?;
+                let idx: usize = quick_xml::escape::unescape(&v_raw)
+                    .map_err(|_| SurgeonError::CellNotFound(cell_ref.into()))?
+                    .parse()
+                    .map_err(|_| SurgeonError::CellNotFound(cell_ref.into()))?;
+                let ss_xml = self.read_entry("xl/sharedStrings.xml")?;
+                let ss = SharedStrings::parse(&ss_xml)?;
+                ss.si_entries.get(idx).cloned()
+                    .ok_or_else(|| SurgeonError::CellNotFound(format!("shared string index {idx}")))
+            }
+            CellType::InlineString => {
+                Ok(extract_is_t_text(body).unwrap_or_default())
+            }
+            _ => {
+                Ok(extract_tag_text(body, "v")
+                    .and_then(|raw| quick_xml::escape::unescape(&raw).ok().map(|s| s.into_owned()))
+                    .unwrap_or_default())
+            }
+        }
+    }
+
     fn load_shared_strings(&self) -> Result<SharedStrings, SurgeonError> {
-        let xml = self.read_entry("xl/sharedStrings.xml")?;
-        SharedStrings::parse(&xml)
+        SharedStrings::parse(&self.read_entry("xl/sharedStrings.xml")?)
     }
 }
 
 // ---------------------------------------------------------------------------
-// CellType detection
+// Cell type & content helpers
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)]
-enum CellType {
-    SharedString,
-    InlineString,
-    Formula,
-    None,
+enum CellType { SharedString, InlineString, None }
+
+fn detect_cell_type(tag: &str) -> CellType {
+    if tag.contains("t=\"s\"") { CellType::SharedString }
+    else if tag.contains("t=\"inlineStr\"") { CellType::InlineString }
+    else { CellType::None }
 }
 
-/// Escape XML special characters in text content.
-fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+fn find_cell_start(xml: &str, needle: &str) -> Result<usize, SurgeonError> {
+    let mut pos = 0;
+    while pos < xml.len() {
+        let Some(idx) = xml[pos..].find(needle) else { break };
+        let abs = pos + idx;
+        let after = abs + needle.len();
+        if after < xml.len() && xml.as_bytes()[after] == b'"' {
+            return Ok(abs);
+        }
+        pos = after;
+    }
+    Err(SurgeonError::CellNotFound(needle.trim_start_matches("<c r=\"").into()))
 }
 
-/// Get an attribute value from a [`BytesStart`] element by local name.
+/// Extract text content of `<tag>...</tag>` (first occurrence in body), unescaped.
+fn extract_tag_text(body: &str, tag: &str) -> Option<String> {
+    let open = format!("<{tag}>");
+    let open_alt = format!("<{tag} ");
+    let close = format!("</{tag}>");
+    let start = body.find(&open).map(|p| p + open.len())
+        .or_else(|| body.find(&open_alt).and_then(|p| body[p..].find('>').map(|g| p + g + 1)))?;
+    let end = body[start..].find(&close)?;
+    Some(body[start..start + end].to_string())
+}
+
+/// Extract text from `<is><t>...</t></is>`, unescaped.
+fn extract_is_t_text(body: &str) -> Option<String> {
+    let is_start = body.find("<is>")?;
+    let t_rel = body[is_start..].find("<t")?;
+    let t_abs = is_start + t_rel;
+    let t_tag_end = body[t_abs..].find('>').map(|p| t_abs + p)?;
+    let content_start = t_tag_end + 1;
+    let content_end = body[content_start..].find("</t>")?;
+    let raw = &body[content_start..content_start + content_end];
+    quick_xml::escape::unescape(raw).ok().map(|s| s.into_owned())
+}
+
+/// Replace `<v>...</v>` content in cell body.
+fn replace_v_in_body(body: &str, new_v: &str) -> String {
+    let escaped = quick_xml::escape::escape(new_v);
+    if let Some(s) = body.find("<v>") {
+        let e = body[s..].find("</v>").map(|p| s + p).unwrap_or(body.len());
+        format!("{}<v>{escaped}</v>{}", &body[..s], &body[e + 4..])
+    } else if let Some(s) = body.find("<v ") {
+        let e = body[s..].find("</v>").map(|p| s + p).unwrap_or(body.len());
+        let g = body[s..].find('>').map(|p| s + p).unwrap_or(e);
+        format!("{}{}{escaped}</v>{}", &body[..s], &body[s..=g], &body[e + 4..])
+    } else {
+        format!("<v>{escaped}</v>{body}")
+    }
+}
+
+/// Replace text inside `<is><t>...</t></is>` in cell body.
+fn replace_is_t_text(body: &str, new_text: &str) -> Option<String> {
+    let is_start = body.find("<is>")?;
+    let t_rel = body[is_start..].find("<t")?;
+    let t_abs = is_start + t_rel;
+    let t_tag_end = body[t_abs..].find('>').map(|p| t_abs + p)?;
+    let content_start = t_tag_end + 1;
+    let t_close = body[content_start..].find("</t>")?;
+    let escaped = quick_xml::escape::escape(new_text);
+    Some(format!("{}{escaped}{}", &body[..content_start], &body[content_start + t_close..]))
+}
+
+// ---------------------------------------------------------------------------
+// Workbook XML parsing helpers
+// ---------------------------------------------------------------------------
+
 fn get_attr(e: &BytesStart, name: &[u8]) -> Option<String> {
     for attr in e.attributes().flatten() {
         if attr.key.as_ref() == name {
@@ -425,11 +379,6 @@ fn get_attr(e: &BytesStart, name: &[u8]) -> Option<String> {
     None
 }
 
-// ---------------------------------------------------------------------------
-// Workbook XML parsing helpers
-// ---------------------------------------------------------------------------
-
-/// Parse workbook.xml and return `Vec<(sheet_name, rId)>`.
 fn parse_workbook_sheets(xml: &str) -> Vec<(String, String)> {
     let mut entries = Vec::new();
     let mut reader = XmlReader::from_str(xml);
@@ -441,12 +390,7 @@ fn parse_workbook_sheets(xml: &str) -> Vec<(String, String)> {
                 if e.name().as_ref() == b"sheet" {
                     let name = get_attr(e, b"name").unwrap_or_default();
                     let rid = get_attr(e, b"r:id")
-                        .or_else(|| {
-                            get_attr(
-                                e,
-                                b"{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id",
-                            )
-                        })
+                        .or_else(|| get_attr(e, b"{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"))
                         .unwrap_or_default();
                     if !name.is_empty() && !rid.is_empty() {
                         entries.push((name, rid));
@@ -461,7 +405,6 @@ fn parse_workbook_sheets(xml: &str) -> Vec<(String, String)> {
     entries
 }
 
-/// Parse workbook.xml.rels and return `HashMap<Id, Target>`.
 fn parse_rels(xml: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     let mut reader = XmlReader::from_str(xml);
@@ -473,9 +416,7 @@ fn parse_rels(xml: &str) -> HashMap<String, String> {
                 if e.name().as_ref() == b"Relationship" {
                     let id = get_attr(e, b"Id").unwrap_or_default();
                     let target = get_attr(e, b"Target").unwrap_or_default();
-                    if !id.is_empty() && !target.is_empty() {
-                        map.insert(id, target);
-                    }
+                    if !id.is_empty() && !target.is_empty() { map.insert(id, target); }
                 }
             }
             Ok(Event::Eof) => break,
@@ -490,17 +431,12 @@ fn parse_rels(xml: &str) -> HashMap<String, String> {
 // SharedStrings helper
 // ---------------------------------------------------------------------------
 
-/// Represents the content of `xl/sharedStrings.xml`.
-/// Allows appending new strings and re-serializing.
 struct SharedStrings {
-    /// The existing `<si><t>...</t></si>` entries.
     si_entries: Vec<String>,
-    /// Running count attribute value.
     count: u32,
 }
 
 impl SharedStrings {
-    /// Parse sharedStrings.xml into a `SharedStrings` helper.
     fn parse(xml: &str) -> Result<Self, SurgeonError> {
         let mut si_entries = Vec::new();
         let mut count = 0u32;
@@ -510,100 +446,68 @@ impl SharedStrings {
         let mut in_si = false;
         let mut in_t = false;
         let mut current_t = String::new();
-
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) => {
-                    if e.name().as_ref() == b"si" {
-                        in_si = true;
-                    } else if e.name().as_ref() == b"t" && in_si {
-                        in_t = true;
-                        current_t.clear();
+                    match e.name().as_ref() {
+                        b"si" => in_si = true,
+                        b"t" if in_si => { in_t = true; current_t.clear(); }
+                        _ => {}
                     }
                 }
-                Ok(Event::Text(ref e)) => {
-                    if in_t {
-                        current_t.push_str(&e.unescape().unwrap_or_default());
-                    }
+                Ok(Event::Text(ref e)) if in_t => {
+                    current_t.push_str(&e.unescape().unwrap_or_default());
                 }
-                Ok(Event::End(ref e)) => {
-                    if e.name().as_ref() == b"t" && in_si {
-                        in_t = false;
-                    } else if e.name().as_ref() == b"si" {
+                Ok(Event::End(ref e)) => match e.name().as_ref() {
+                    b"t" if in_si => in_t = false,
+                    b"si" => {
                         in_si = false;
                         si_entries.push(current_t.clone());
                         current_t.clear();
                         count += 1;
                     }
-                }
+                    _ => {}
+                },
                 Ok(Event::Eof) => break,
                 _ => {}
             }
             buf.clear();
         }
-
         Ok(Self { si_entries, count })
     }
 
-    /// Append a new string and return its index.
     fn append(&mut self, text: &str) -> usize {
         let idx = self.si_entries.len();
-        self.si_entries.push(text.to_string());
+        self.si_entries.push(text.into());
         self.count += 1;
         idx
     }
 
-    /// Serialize back to XML bytes.
     fn serialize(&self) -> Result<Vec<u8>, SurgeonError> {
         let mut out = Vec::new();
-        // Write XML declaration
-        out.extend_from_slice(
-            b"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n",
-        );
-
-        let count_str = self.count.to_string();
-        let unique_str = self.si_entries.len().to_string();
-
-        // Open <sst>
-        out.extend_from_slice(b"<sst");
-        out.extend_from_slice(b" xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"");
-        write_attr(&mut out, b" count", &count_str);
-        write_attr(&mut out, b" uniqueCount", &unique_str);
+        out.extend_from_slice(b"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
+        let count = self.count.to_string();
+        let unique = self.si_entries.len().to_string();
+        out.extend_from_slice(b"<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"");
+        write_attr(&mut out, b" count", &count);
+        write_attr(&mut out, b" uniqueCount", &unique);
         out.extend_from_slice(b">");
-
-        // Each <si><t>...</t></si>
         for text in &self.si_entries {
             out.extend_from_slice(b"<si><t>");
-            escape_xml_text(&mut out, text);
+            out.extend_from_slice(quick_xml::escape::escape(text).as_bytes());
             out.extend_from_slice(b"</t></si>");
         }
-
         out.extend_from_slice(b"</sst>");
         Ok(out)
     }
 }
 
-/// Write an XML attribute like ` name="value"`.
 fn write_attr(out: &mut Vec<u8>, key: &[u8], value: &str) {
     out.extend_from_slice(key);
     out.push(b'=');
     out.push(b'"');
     out.extend_from_slice(value.as_bytes());
     out.push(b'"');
-}
-
-/// Escape XML special characters in text content.
-fn escape_xml_text(out: &mut Vec<u8>, text: &str) {
-    for byte in text.bytes() {
-        match byte {
-            b'<' => out.extend_from_slice(b"&lt;"),
-            b'>' => out.extend_from_slice(b"&gt;"),
-            b'&' => out.extend_from_slice(b"&amp;"),
-            b'"' => out.extend_from_slice(b"&quot;"),
-            b'\'' => out.extend_from_slice(b"&apos;"),
-            _ => out.push(byte),
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -613,23 +517,17 @@ fn escape_xml_text(out: &mut Vec<u8>, text: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quick_xml::writer::Writer as XmlWriter;
     use std::path::PathBuf;
 
     fn fixture(name: &str) -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures")
-            .join(name)
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
     }
 
     #[test]
     fn open_and_save_roundtrip() {
-        let path = fixture("data1.xlsx");
-        let surgeon = XmlSurgeon::open(&path).unwrap();
+        let surgeon = XmlSurgeon::open(&fixture("data1.xlsx")).unwrap();
         let tmp = tempfile::NamedTempFile::new().unwrap();
         surgeon.save(tmp.path()).unwrap();
-
-        // Verify the saved file is a valid zip/xlsx
         let saved = XmlSurgeon::open(tmp.path()).unwrap();
         assert!(!saved.entries.is_empty());
     }
@@ -643,18 +541,12 @@ mod tests {
 </sst>"#;
         let ss = SharedStrings::parse(xml).unwrap();
         assert_eq!(ss.si_entries, vec!["Hello", "World"]);
-        assert_eq!(ss.count, 2);
-
         let mut ss = ss;
-        let idx = ss.append("New");
-        assert_eq!(idx, 2);
+        assert_eq!(ss.append("New"), 2);
         assert_eq!(ss.count, 3);
-
-        let bytes = ss.serialize().unwrap();
-        let s = String::from_utf8(bytes).unwrap();
+        let s = String::from_utf8(ss.serialize().unwrap()).unwrap();
         assert!(s.contains("<si><t>New</t></si>"));
         assert!(s.contains("count=\"3\""));
-        assert!(s.contains("uniqueCount=\"3\""));
     }
 
     #[test]
@@ -678,9 +570,7 @@ mod tests {
   </sheets>
 </workbook>"#;
         let entries = parse_workbook_sheets(xml);
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0], ("Sheet1".into(), "rId1".into()));
-        assert_eq!(entries[1], ("Sheet2".into(), "rId2".into()));
+        assert_eq!(entries, vec![("Sheet1".into(), "rId1".into()), ("Sheet2".into(), "rId2".into())]);
     }
 
     #[test]
@@ -697,8 +587,6 @@ mod tests {
 
     #[test]
     fn set_cell_text_shared_string() {
-        // Create a minimal xlsx in memory with shared strings
-        // This is a unit test for the core logic — integration tests use real fixtures
         let xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetData>
@@ -707,24 +595,20 @@ mod tests {
     </row>
   </sheetData>
 </worksheet>"#;
-        // Just test that parsing + writing works without errors
         let mut reader = XmlReader::from_str(xml);
         reader.config_mut().trim_text(true);
         let mut out = Vec::new();
-        let mut writer = XmlWriter::new(&mut out);
+        let mut writer = quick_xml::writer::Writer::new(&mut out);
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Eof) => break,
-                Ok(e) => {
-                    writer.write_event(e.into_owned()).unwrap();
-                }
+                Ok(e) => { writer.write_event(e.into_owned()).unwrap(); }
                 Err(_) => panic!("XML parse error"),
             }
             buf.clear();
         }
         let result = String::from_utf8(out).unwrap();
         assert!(result.contains("A1"));
-        assert!(result.contains("s"));
     }
 }

@@ -186,14 +186,14 @@ impl Executor {
                         &action_str(&site.action),
                     );
                     if let Some(ref mut s) = surgeon {
-                        // 尝试保留数值类型（对齐 Python executor 行为）
-                        let write_value = if site.action == ActionType::Precision || site.action == ActionType::Perturb || site.action == ActionType::Mask {
+                        // 子串替换：只替换单元格中的 matched 子串，保留其余内容
+                        let write_new = if site.action == ActionType::Precision || site.action == ActionType::Perturb || site.action == ActionType::Mask {
                             try_numeric_value(&redacted)
                         } else {
                             redacted.clone()
                         };
                         if let Err(e) =
-                            s.set_cell_text(sheet_name, cell_ref, &write_value)
+                            s.replace_in_cell(sheet_name, cell_ref, original, &write_new)
                         {
                             report.errors += 1;
                             audit.log_error(
@@ -408,13 +408,17 @@ impl Executor {
             let Some(slide_idx) = site.location.slide else {
                 continue;
             };
-            // 定位该位点的当前文本（优先从解析数据读取，回退 original_value）
-            let current = current_ppt_text(&slides, slide_idx as usize, site)
-                .unwrap_or_else(|| site.original_value.clone());
+            // 验证该位点的原始文本仍存在于当前文档中
+            if current_ppt_text(&slides, slide_idx as usize, site).is_none() {
+                report.skipped += 1;
+                continue;
+            }
+            // 用 original_value（匹配子串）做脱敏，而非整段文字
+            let original = &site.original_value;
 
             match redact_value(
                 &mut name_redactor,
-                &current,
+                original,
                 &site.action,
                 site.params.as_ref(),
             ) {
@@ -422,12 +426,13 @@ impl Executor {
                     audit.log_change(
                         &site.site_id,
                         location_json(&site.location),
-                        &current,
+                        original,
                         &redacted,
                         &action_str(&site.action),
                     );
                     if let Some(ref mut ed) = editor {
-                        ed.replace_text(slide_idx as usize, &current, &redacted)
+                        // 用 original_value 子串做精确替换，保留段落其余文字
+                        ed.replace_text(slide_idx as usize, original, &redacted)
                             .map_err(ExecError::PptWriter)?;
                     }
                     report.processed += 1;
