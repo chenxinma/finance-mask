@@ -1,12 +1,12 @@
 # 财务文件智能脱敏工具
 
-一款纯本地运行的财务文件智能脱敏工具（Python CLI），自动扫描 XLSX / PPTX 中的敏感数据，执行可配置的脱敏策略，并嵌入隐形水印实现分发溯源。
+一款纯本地运行的财务文件智能脱敏工具（Rust CLI + Tauri 桌面 UI），自动扫描 XLSX / PPTX 中的敏感数据，执行可配置的脱敏策略，并嵌入隐形水印实现分发溯源。
 
 ## 功能特性
 
 ### 扫描识别
 
-- **双表类型自动识别**：通过 Rust 动态库自动区分 Data 型（表头+数据的 DataFrame）和 Form 型（key-value 表单）表格，采用不同扫描策略
+- **双表类型自动识别**：内置分类器自动区分 Data 型（表头+数据的 DataFrame）和 Form 型（key-value 表单）表格，采用不同扫描策略
 - **列头定位扫描**：匹配列头名称（精确/正则），定位整列数据行；支持多行合并表头
 - **全文正则扫描**：兜底扫描全部单元格文本，识别金额、机构名、银行卡号、合同号等
 - **字典实体匹配**：支持从 txt 字典文件加载实体名称（每行一个），使用 Aho-Corasick 算法 O(n) 高效匹配，适合万级词条场景；字典匹配优先级高于正则匹配
@@ -37,16 +37,23 @@
 
 ```bash
 git clone https://github.com/chenxinma/finance-mask.git
-cd finance-mask
+cd finance-mask/rust
 
-# 使用 uv（推荐）
-uv sync
-
-# 或 pip
-pip install -e .
+cargo build --release
 ```
 
-> 依赖 Python ≥ 3.13。Rust 动态库 `layout_view.dll` / `liblayout_view.so` 用于表格类型自动识别，已包含在 `lib/` 目录。
+> 依赖 Rust 工具链（edition 2021）。二进制产物：`rust/target/release/finance-mask`（Windows 为 `finance-mask.exe`），下文示例假设其已在 PATH 中，否则用完整路径调用。
+>
+> 正则/列头规则在编译期内嵌进二进制；实体字典 `entity_dict.txt` 在运行时从可执行文件同级的 `config/` 目录读取，部署时需将仓库 `config/` 拷贝到二进制旁。
+
+### 桌面 UI（Tauri）
+
+```bash
+cd ui
+cargo run
+```
+
+三步式界面：① 生成策略（扫描 xlsx/pptx → YAML）② 编辑策略（位点/列规则表格化审核，enabled/action/params 可改，支持 YAML 预览）③ 执行脱敏（含 dry-run 预览与批量报告）。前端为纯静态文件，无 CDN/npm 依赖，适配离线内网环境；开发模式下字典自动回退读取仓库 `config/`。
 
 ## 快速开始
 
@@ -108,12 +115,6 @@ finance-mask redact -i 财务报告.xlsx --default-policy -o ./输出/
 finance-mask redact -i 财务报告.xlsx -s 策略.yaml -o ./输出/ --dry-run
 ```
 
-### 6. 验证水印
-
-```bash
-python -m finance_mask.decode_watermark ./输出/财务报告_脱敏.xlsx
-```
-
 ## 命令参考
 
 ### generate
@@ -124,7 +125,7 @@ finance-mask generate -i <输入> -o <策略.yaml> [-v]
 
 | 参数 | 简写 | 必填 | 说明 |
 |------|------|------|------|
-| `--input` | `-i` | 是 | 输入文件或文件夹路径 |
+| `--input` | `-i` | 是 | 输入文件路径（.xlsx / .pptx） |
 | `--output` | `-o` | 是 | 输出策略文件路径 |
 | `--verbose` | `-v` | 否 | 显示详细日志 |
 
@@ -195,7 +196,7 @@ finance-mask redact -i <输入> [-s <策略.yaml> | --default-policy] -o <输出
 四川措拉
 ```
 
-> 字典文件修改后无需重新编译，运行时自动读取最新内容。
+> 列头/正则规则在编译期内嵌，修改 `column_rules.json` / `pattern_rules.json` 后需 `cargo build --release` 重新编译；字典 `entity_dict.txt` 在运行时读取，修改后无需重新编译。
 
 ## 差分脱敏策略
 
@@ -212,48 +213,46 @@ sites:
     params: { scale: "1.0418" }   # 所有相关单元格使用相同缩放因子
 ```
 
-详见 `examples/差分策略示例.yaml`。
+详见 `docs/差分脱敏模式说明.md`。
 
 ## 项目结构
 
 ```
-finance_mask/
-├── src/finance_mask/
-│   ├── __main__.py              # CLI 入口
-│   ├── main.py                  # Click 命令定义
-│   ├── models/                  # 数据模型
-│   │   ├── site.py              #   位点模型（Location, Site）
-│   │   └── strategy.py          #   策略模型（Strategy, ColumnRule）
-│   ├── scanner/                 # 扫描器
-│   │   ├── excel_scanner_v2.py  #   Excel V2（Data/Form 双模式）
-│   │   ├── ppt_scanner.py       #   PPT 扫描（含备注）
-│   │   ├── layout_view.py       #   表格类型识别（Rust FFI）
-│   │   ├── header_finder.py     #   表头行定位（支持多行合并）
-│   │   ├── column_matcher.py    #   列头匹配器
-│   │   └── patterns.py          #   正则规则库
-│   ├── engine/                  # 脱敏引擎
-│   │   ├── amount.py            #   金额（precision/perturb/mask/differential）
-│   │   ├── name.py              #   名称（alias/mask_name）
-│   │   ├── account.py           #   账号（mask_account）
-│   │   └── executor.py          #   策略执行器
-│   ├── watermark/               # 水印模块
-│   │   ├── encoder.py           #   零宽字符编码与嵌入
-│   │   └── decoder.py           #   解码与提取
-│   ├── audit/                   # 审计模块
-│   │   └── logger.py            #   审计日志记录与导出
-│   └── utils/
-│       ├── yaml_io.py           #   策略文件读写
-│       └── file_utils.py        #   文件遍历、哈希等工具
+finance-mask/
+├── rust/                          # Rust 核心（finance-mask-core 库 + finance-mask CLI）
+│   ├── Cargo.toml
+│   ├── src/
+│   │   ├── main.rs                # CLI 入口：generate / redact 子命令
+│   │   ├── lib.rs                 # 模块声明
+│   │   ├── models.rs              # 核心数据模型（Site / Strategy / ColumnRule）
+│   │   ├── config.rs              # 配置单一来源（内嵌 config/*.json + 路径覆盖）
+│   │   ├── classify.rs            # Excel 工作表 Data/Form 分类
+│   │   ├── header_finder.rs       # 表头行定位（多维评分 + 多行合并表头）
+│   │   ├── column_matcher.rs      # 列头匹配（exact / regex）
+│   │   ├── patterns.rs            # 全文扫描规则库（fancy-regex + Aho-Corasick 字典）
+│   │   ├── excel_scanner.rs       # Excel 扫描器（列规则 / Form / 全文 / 位点生成）
+│   │   ├── ppt_reader.rs          # PPTX 阅读层（zip + quick-xml 解析 OOXML）
+│   │   ├── ppt_scanner.rs         # PPT 扫描器（文本框 / 表格 / 备注）
+│   │   ├── engine.rs              # 脱敏实现（金额 / 名称 / 账号）
+│   │   ├── executor.rs            # 脱敏执行器（策略 → 写回 → 水印 → 审计日志）
+│   │   ├── xmlsurgeon.rs          # xlsx 外科手术式写回（非目标内容逐字节保留）
+│   │   ├── ppt_writer.rs          # pptx 外科手术式写回
+│   │   ├── watermark.rs           # 零宽字符水印编解码与嵌入
+│   │   ├── audit.rs               # 审计日志生成与导出
+│   │   ├── yaml_io.rs             # 策略 YAML 读写
+│   │   └── pipeline.rs            # CLI/UI 共享编排层（generate/redact）
+│   └── tests/                     # 集成测试与 fixtures
+├── ui/                            # Tauri 2 桌面 UI（path 依赖 rust/ core）
+│   ├── src/main.rs                # Tauri 命令：文件选择/生成/编辑/执行
+│   ├── frontend/                  # 纯静态前端（index.html/app.js/style.css，无构建链）
+│   └── tauri.conf.json
 ├── config/
-│   ├── column_rules.json        # 列头规则配置
-│   ├── pattern_rules.json       # 正则规则配置
-│   └── entity_dict.txt          # 实体字典（每行一个实体）
-├── lib/
-│   └── layout_view.dll          # Rust 表格类型识别动态库
-├── examples/
-│   └── ...                      # 示例文件和策略
-└── tests/
-    └── ...                      # 单元测试
+│   ├── column_rules.json          # 列头规则配置
+│   ├── pattern_rules.json         # 正则规则配置
+│   └── entity_dict.txt            # 实体字典（每行一个实体）
+├── docs/                          # 设计文档、实施计划与用户手册
+├── examples/                      # 示例文件与策略
+└── python-core.tar.gz             # 已归档的 Python 版核心
 ```
 
 ## 许可证

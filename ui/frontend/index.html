@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>财务文件智能脱敏</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <h1>财务文件智能脱敏</h1>
+  <div class="tabs">
+    <button data-tab="gen" class="active">① 生成策略</button>
+    <button data-tab="edit">② 编辑策略</button>
+    <button data-tab="run">③ 执行脱敏</button>
+  </div>
+</nav>
+
+<!-- ① 生成策略 -->
+<section id="tab-gen" class="tab active">
+  <div class="row">
+    <label>输入文件</label>
+    <input id="gen-input" readonly placeholder="选择 .xlsx / .pptx 文件">
+    <button id="gen-pick">浏览…</button>
+  </div>
+  <div class="row">
+    <label>策略保存为</label>
+    <input id="gen-output" readonly placeholder="策略.yaml">
+    <button id="gen-save-pick">浏览…</button>
+  </div>
+  <div class="row">
+    <label></label>
+    <button id="gen-run" class="primary">扫描并生成策略</button>
+  </div>
+  <pre id="gen-report" class="report hidden"></pre>
+  <p class="hint">生成后将自动进入「编辑策略」页供人工审核。</p>
+</section>
+
+<!-- ② 编辑策略 -->
+<section id="tab-edit" class="tab">
+  <div class="row">
+    <label>策略文件</label>
+    <input id="edit-path" readonly placeholder="选择 .yaml 策略文件">
+    <button id="edit-pick">打开…</button>
+    <button id="edit-save" class="primary">保存</button>
+    <button id="edit-yaml-btn">YAML 预览</button>
+  </div>
+  <div id="edit-meta" class="meta"></div>
+  <h2>列规则 <span id="rules-count" class="count"></span></h2>
+  <div class="table-wrap"><table id="rules-table"></table></div>
+  <h2>敏感位点 <span id="sites-count" class="count"></span></h2>
+  <div class="table-wrap"><table id="sites-table"></table></div>
+  <pre id="edit-preview" class="report hidden"></pre>
+</section>
+
+<!-- ③ 执行脱敏 -->
+<section id="tab-run" class="tab">
+  <div class="row">
+    <label>输入</label>
+    <input id="run-input" readonly placeholder="文件或文件夹">
+    <button id="run-pick-input">选文件…</button>
+    <button id="run-pick-dir">选文件夹…</button>
+  </div>
+  <div class="row">
+    <label>策略文件</label>
+    <input id="run-strategy" readonly placeholder="选择 .yaml 策略文件">
+    <button id="run-pick-strategy">浏览…</button>
+    <label class="inline"><input type="checkbox" id="run-default"> 使用默认策略（跳过审核）</label>
+  </div>
+  <div class="row">
+    <label>输出目录</label>
+    <input id="run-out" readonly placeholder="脱敏结果输出目录">
+    <button id="run-pick-out">浏览…</button>
+  </div>
+  <div class="row">
+    <label>操作人</label>
+    <input id="run-operator" placeholder="默认取系统用户名（写入水印）">
+    <label class="inline"><input type="checkbox" id="run-force"> 覆盖已存在 (-f)</label>
+    <label class="inline"><input type="checkbox" id="run-dry"> 仅预览 (dry-run)</label>
+  </div>
+  <div class="row">
+    <label></label>
+    <button id="run-run" class="primary">执行脱敏</button>
+  </div>
+  <div id="run-report"></div>
+</section>
+
+<footer><span id="status">就绪</span></footer>
+<script src="app.js"></script>
+</body>
+</html>

@@ -761,7 +761,7 @@ git commit -m "feat(rust): executor, strategy yaml io, cli — full parity with 
 
 ## Task 7（Phase 7，另行计划）：UI 壳
 
-**状态：已定集 Tauri（2026-09-05），暂不启动。** 启动条件：Phase 0-6 完成。此阶段仅锁定接口事实：UI 是 `finance_mask_core` lib 的薄客户端（Tauri 后端直接 path-depend core crate），策略 YAML 是唯一人审产物，UI 的规则配置/策略修订界面是它的图形化编辑器。
+**状态：已启动（2026-09-10），Tauri 2 骨架已落地 `ui/`。** 启动条件：Phase 0-6 完成。接口事实：UI 是 `finance_mask_core` lib 的薄客户端（Tauri 后端直接 path-depend core crate，编排逻辑已下沉至 `lib::pipeline`），策略 YAML 是唯一人审产物，UI 的规则配置/策略修订界面是它的图形化编辑器。
 
 **已决策：** UI 形态 = **a) Tauri 桌面应用**（Rust 后端 + web 前端，单 exe 分发，与 core 同 workspace）。
 **待确认（启动 UI 计划前）：** 使用环境是否隔离内网/涉密（影响 CDN、自动更新、webview 离线打包）。
