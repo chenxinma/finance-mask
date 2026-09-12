@@ -131,6 +131,34 @@ $('#nav-next').onclick = () => {
   else doRedact();
 };
 
+// ---- 实体词典编辑（config/entity_dict.txt，每行一个实体名） ----
+function dictCount() {
+  const n = $('#dict-text').value.split('\n').map((l) => l.trim()).filter(Boolean).length;
+  $('#dict-count').textContent = n ? `${n} 个实体名` : '';
+}
+$('#dict-edit').onclick = async () => {
+  try {
+    $('#dict-text').value = await invoke('dict_load');
+    dictCount();
+    $('#dict-modal').classList.remove('hidden');
+    setStatus('词典修改后，下次扫描生效', '');
+  } catch (e) {
+    setStatus('词典读取失败: ' + e, 'err');
+  }
+};
+$('#dict-text').oninput = dictCount;
+$('#dict-save').onclick = async () => {
+  try {
+    const n = await invoke('dict_save', { content: $('#dict-text').value });
+    setStatus(`词典已保存：${n} 个实体名`, 'ok');
+    $('#dict-modal').classList.add('hidden');
+  } catch (e) {
+    setStatus('词典保存失败: ' + e, 'err');
+  }
+};
+$('#dict-close').onclick = () => $('#dict-modal').classList.add('hidden');
+$('#dict-modal').onclick = (e) => { if (e.target === $('#dict-modal')) $('#dict-modal').classList.add('hidden'); };
+
 // ---- ① 选择文件（单文件） ----
 $('#gen-pick').onclick = async () => {
   const p = await invoke('pick_file', { kind: 'input' });

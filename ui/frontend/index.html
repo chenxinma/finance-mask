@@ -38,6 +38,9 @@
         <button type="button" id="gen-save-pick">浏览…</button>
       </div>
     </div>
+    <div class="btn-row">
+      <button type="button" id="dict-edit">编辑实体词典…</button>
+    </div>
     <div id="gen-summary" class="hidden"></div>
     <p class="hint">扫描完成后自动进入「审核策略」步骤。全程仅处理这一个文件。</p>
   </section>
@@ -94,6 +97,17 @@
   <div class="modal">
     <div class="modal-head"><span>YAML 预览（保存后的实际内容）</span><button type="button" id="modal-close">关闭</button></div>
     <pre id="modal-body"></pre>
+  </div>
+</div>
+
+<div id="dict-modal" class="overlay hidden" role="dialog" aria-label="实体词典">
+  <div class="modal">
+    <div class="modal-head"><span>实体词典（每行一个实体名）</span><button type="button" id="dict-close">关闭</button></div>
+    <textarea id="dict-text" spellcheck="false" placeholder="每行一个实体名，如：&#10;天齐锂业&#10;格林布什"></textarea>
+    <div class="modal-foot">
+      <span id="dict-count" class="count"></span>
+      <button type="button" id="dict-save" class="primary">保存词典</button>
+    </div>
   </div>
 </div>
 

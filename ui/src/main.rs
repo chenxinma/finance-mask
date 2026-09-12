@@ -69,6 +69,50 @@ fn generate(input: String, output: String) -> Result<pipeline::GenerateReport, S
     pipeline::generate(Path::new(&input), Path::new(&output), &config_dir())
 }
 
+/// 字典行规范化：去首尾空白、去空行、去重（保持顺序）
+fn normalize_dict(content: &str) -> Vec<&str> {
+    let mut seen = std::collections::HashSet::new();
+    content
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && seen.insert(*l))
+        .collect()
+}
+
+/// 读取实体词典（config/entity_dict.txt，每行一个实体名）
+#[tauri::command]
+fn dict_load() -> Result<String, String> {
+    let p = config_dir().join("entity_dict.txt");
+    if !p.exists() {
+        return Ok(String::new());
+    }
+    std::fs::read_to_string(&p).map_err(|e| e.to_string())
+}
+
+/// 保存实体词典；空字典会让扫描配置加载失败（config.rs “字典文件为空”），故拒绝
+#[tauri::command]
+fn dict_save(content: String) -> Result<usize, String> {
+    let words = normalize_dict(&content);
+    if words.is_empty() {
+        return Err("词典至少需要一个实体名".into());
+    }
+    let p = config_dir().join("entity_dict.txt");
+    std::fs::write(&p, words.join("\n") + "\n").map_err(|e| e.to_string())?;
+    Ok(words.len())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn normalize_dict_trims_dedups_keeps_order() {
+        assert_eq!(
+            super::normalize_dict(" 天齐锂业 \n\n格林布什\n天齐锂业\n  "),
+            vec!["天齐锂业", "格林布什"]
+        );
+        assert!(super::normalize_dict(" \n ").is_empty());
+    }
+}
+
 #[tauri::command]
 fn load_strategy(path: String) -> Result<Strategy, String> {
     yaml_io::load_strategy_yaml(Path::new(&path)).map_err(|e| e.to_string())
@@ -134,6 +178,8 @@ fn main() {
             pick_dir,
             save_file,
             generate,
+            dict_load,
+            dict_save,
             load_strategy,
             save_strategy,
             preview_yaml,
