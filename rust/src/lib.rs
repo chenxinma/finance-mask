@@ -9,6 +9,7 @@ pub mod executor;
 pub mod header_finder;
 pub mod models;
 pub mod patterns;
+pub mod pipeline;
 pub mod ppt_reader;
 pub mod ppt_scanner;
 pub mod ppt_writer;

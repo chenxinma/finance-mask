@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>财务文件智能脱敏</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="fold" aria-hidden="true"></div>
+  <h1>财务文件智能脱敏</h1>
+  <nav class="stepper" id="stepper" aria-label="向导步骤">
+    <button type="button" class="step" data-step="1"><span class="num">1</span><span class="lbl">选择文件</span></button>
+    <span class="bar" aria-hidden="true"></span>
+    <button type="button" class="step" data-step="2"><span class="num">2</span><span class="lbl">审核策略</span></button>
+    <span class="bar" aria-hidden="true"></span>
+    <button type="button" class="step" data-step="3"><span class="num">3</span><span class="lbl">执行脱敏</span></button>
+  </nav>
+</header>
+
+<main id="main">
+
+  <!-- ① 选择文件 -->
+  <section id="panel1" class="panel active">
+    <div class="field">
+      <label for="gen-input">待脱敏文件（.xlsx / .pptx，单个文件）</label>
+      <div class="inline-row">
+        <input id="gen-input" readonly placeholder="尚未选择文件">
+        <button type="button" id="gen-pick">浏览…</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="gen-output">策略保存位置（供下一步人工审核）</label>
+      <div class="inline-row">
+        <input id="gen-output" readonly placeholder="选择文件后自动填写，可修改">
+        <button type="button" id="gen-save-pick">浏览…</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button type="button" id="dict-edit">编辑实体词典…</button>
+    </div>
+    <div id="gen-summary" class="hidden"></div>
+    <p class="hint">扫描完成后自动进入「审核策略」步骤。全程仅处理这一个文件。</p>
+  </section>
+
+  <!-- ② 审核策略 -->
+  <section id="panel2" class="panel">
+    <div class="searchbar">
+      <input id="search" type="search" placeholder="搜索位点 / 原始值 / 位置…">
+      <span id="search-count" class="count"></span>
+    </div>
+    <div id="edit-meta" class="meta"></div>
+    <div class="btn-row">
+      <button type="button" id="edit-pick">打开已有策略…</button>
+      <button type="button" id="edit-yaml-btn">YAML 预览</button>
+    </div>
+    <h2>列规则 <span id="rules-count" class="count"></span></h2>
+    <div id="rules-list"></div>
+    <h2>敏感位点 <span id="sites-count" class="count"></span></h2>
+    <div id="sites-list"></div>
+    <div id="empty-search" class="empty hidden">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#B0B0B0" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <p>未找到匹配位点</p>
+      <button type="button" id="search-clear">清空搜索</button>
+    </div>
+  </section>
+
+  <!-- ③ 执行脱敏 -->
+  <section id="panel3" class="panel">
+    <div class="card summary-card">
+      <div class="sum-row"><span class="sum-k">输入文件</span><span class="sum-v" id="run-input-show"></span></div>
+      <div class="sum-row"><span class="sum-k">策略文件</span><span class="sum-v" id="run-strategy-show"></span></div>
+      <button type="button" class="linkish" id="run-back-edit">返回修改策略</button>
+    </div>
+    <div class="field">
+      <label for="run-out">输出目录（默认与输入文件同目录）</label>
+      <div class="inline-row">
+        <input id="run-out" readonly placeholder="选择脱敏结果输出目录">
+        <button type="button" id="run-pick-out">浏览…</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="run-operator">操作人（写入水印，用于分发溯源）</label>
+      <input id="run-operator" placeholder="留空则取系统用户名">
+    </div>
+    <label class="check"><input type="checkbox" id="run-dry" checked> 仅预览，不修改文件（建议先预览一次）</label>
+    <label class="check"><input type="checkbox" id="run-force"> 输出文件已存在时覆盖</label>
+    <div id="run-report" class="hidden"></div>
+    <p class="hint">执行后生成「*_脱敏.*」文件与「*_日志.json」审计日志，隐形水印已嵌入。</p>
+  </section>
+
+</main>
+
+<div id="modal" class="overlay hidden" role="dialog" aria-label="YAML 预览">
+  <div class="modal">
+    <div class="modal-head"><span>YAML 预览（保存后的实际内容）</span><button type="button" id="modal-close">关闭</button></div>
+    <pre id="modal-body"></pre>
+  </div>
+</div>
+
+<div id="dict-modal" class="overlay hidden" role="dialog" aria-label="实体词典">
+  <div class="modal">
+    <div class="modal-head"><span>实体词典（每行一个实体名）</span><button type="button" id="dict-close">关闭</button></div>
+    <textarea id="dict-text" spellcheck="false" placeholder="每行一个实体名，如：&#10;天齐锂业&#10;格林布什"></textarea>
+    <div class="modal-foot">
+      <span id="dict-count" class="count"></span>
+      <button type="button" id="dict-save" class="primary">保存词典</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <button type="button" id="nav-back" class="hidden">上一步</button>
+  <button type="button" id="nav-restart" class="hidden">重新开始</button>
+  <span id="status" role="status">就绪</span>
+  <button type="button" id="nav-next" class="primary">扫描并生成策略</button>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

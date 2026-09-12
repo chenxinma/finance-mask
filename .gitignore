@@ -14,3 +14,4 @@ wheels/
 .superpowers/
 .worktrees/
 rust/target/
+ui/target/
