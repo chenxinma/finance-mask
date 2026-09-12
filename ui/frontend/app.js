@@ -1,245 +1,457 @@
-// ui/frontend/app.js —— 纯本地前端，无框架无 CDN。
+// ui/frontend/app.js —— 竖屏三步向导，纯本地前端，无框架无 CDN。
 // invoke 走 window.__TAURI__（tauri.conf.json withGlobalTauri=true）。
+// 规格：docs/frontend-design.md
 const { invoke } = window.__TAURI__.core;
 const $ = (s) => document.querySelector(s);
-const status = (msg) => { $('#status').textContent = msg; };
 
-const ACTIONS = ['precision', 'perturb', 'mask', 'alias', 'mask_name',
-  'mask_account', 'differential_shift', 'proportional_scale'];
+// ---- 状态（全流程只持有一个输入文件） ----
+function newState() {
+  return {
+    step: 1, maxStep: 1,
+    inputPath: null,      // 步骤① 选中的唯一输入文件
+    strategyPath: null,   // 策略 YAML 路径
+    strategy: null,       // 编辑中的 Strategy（与后端 serde JSON 同构）
+    generated: false,     // 步骤① 扫描成功
+  };
+}
+let S = newState();
 
-let strategy = null;  // 当前编辑中的 Strategy（与后端 serde JSON 同构）
-let editPath = null;
+// ---- 动作/类型元数据（key 与 rust/src/executor.rs 一一对应） ----
+const TYPE_LABELS = { amount: '金额', entity: '机构名', person: '人名', account: '账号' };
+const TYPE_ACTIONS = {
+  amount: ['precision', 'perturb', 'mask', 'differential_shift', 'proportional_scale'],
+  entity: ['alias'],
+  person: ['mask_name'],
+  account: ['mask_account'],
+};
+const ACTION_LABEL = {
+  precision: '降低精度（按单位取整）',
+  perturb: '随机扰动（±X% 内浮动）',
+  mask: '金额遮掩（保留首位）',
+  differential_shift: '差分偏移（统一加减偏移量）',
+  proportional_scale: '比例缩放（统一乘系数）',
+  alias: '代号替换（如 [公司A]）',
+  mask_name: '姓名遮掩（如 张三→张*）',
+  mask_account: '账号遮掩（保留前后几位）',
+};
+const ACTION_EXAMPLE = {
+  precision: '示例：22.12亿元 → 22亿元',
+  perturb: '示例：12,345,678 → 在 ±5% 内浮动',
+  mask: '示例：12,345,678.90 → 1*,***,***.**，无需参数',
+  differential_shift: '示例：所有金额统一 +1000',
+  proportional_scale: '示例：所有金额统一 ×1.05',
+  alias: '示例：天齐锂业股份有限公司 → [公司A]',
+  mask_name: '示例：张三 → 张*',
+  mask_account: '示例：6222021234567890 → 622***********7890',
+};
+// 每种动作的参数表单；def 与 executor.rs 默认值一致
+const PARAM_FORMS = {
+  precision: [
+    { k: 'unit', label: '换算单位', type: 'select', def: 'million', options: [['thousand', '千'], ['million', '百万'], ['billion', '亿']] },
+    { k: 'decimal_places', label: '小数位数', type: 'number', def: 2 },
+  ],
+  perturb: [{ k: 'percentage', label: '扰动幅度 (%)', type: 'number', def: 5 }],
+  mask: [],
+  differential_shift: [{ k: 'shift', label: '偏移量', type: 'number', required: true, ph: '如 1000' }],
+  proportional_scale: [{ k: 'scale', label: '缩放系数', type: 'number', step: '0.01', required: true, ph: '如 1.05' }],
+  alias: [{ k: 'prefix', label: '代号前缀', type: 'text', def: '公司' }],
+  mask_name: [{ k: 'keep_first', label: '保留前几个字', type: 'number', def: 1 }],
+  mask_account: [
+    { k: 'keep_prefix', label: '保留前几位', type: 'number', def: 3 },
+    { k: 'keep_suffix', label: '保留后几位', type: 'number', def: 4 },
+  ],
+};
 
+// ---- 工具 ----
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-function opts(list, sel) {
-  return list.map((v) => `<option value="${v}"${v === sel ? ' selected' : ''}>${v}</option>`).join('');
+function markHtml(text, q) {
+  const t = String(text ?? '');
+  if (!q) return esc(t);
+  const lower = t.toLowerCase();
+  let out = '', i = 0;
+  for (;;) {
+    const idx = lower.indexOf(q, i);
+    if (idx < 0) { out += esc(t.slice(i)); break; }
+    out += esc(t.slice(i, idx)) + '<mark>' + esc(t.slice(idx, idx + q.length)) + '</mark>';
+    i = idx + q.length;
+  }
+  return out;
 }
-
-// ---- 页签切换 ----
-document.querySelectorAll('.tabs button').forEach((b) => {
-  b.onclick = () => {
-    document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
-    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
-  };
-});
-const switchTab = (name) => document.querySelector(`.tabs button[data-tab="${name}"]`).click();
-
-// ---- ① 生成策略 ----
-$('#gen-pick').onclick = async () => {
-  const p = await invoke('pick_file', { kind: 'input' });
-  if (p) {
-    $('#gen-input').value = p;
-    if (!$('#gen-output').value) {
-      $('#gen-output').value = p.replace(/\.(xlsx|pptx)$/i, '') + '_策略.yaml';
-    }
-  }
-};
-
-$('#gen-save-pick').onclick = async () => {
-  const base = ($('#gen-input').value.split(/[\\/]/).pop() || '策略').replace(/\.(xlsx|pptx)$/i, '');
-  const p = await invoke('save_file', { defaultName: base + '_策略.yaml' });
-  if (p) $('#gen-output').value = p;
-};
-
-$('#gen-run').onclick = async () => {
-  const input = $('#gen-input').value;
-  const output = $('#gen-output').value;
-  if (!input || !output) return status('请先选择输入文件与策略保存路径');
-  status('扫描中…');
-  $('#gen-run').disabled = true;
-  try {
-    const r = await invoke('generate', { input, output });
-    const rep = $('#gen-report');
-    rep.textContent =
-      `扫描 ${r.scanned} 个文件：${r.total_sites} 个位点 / ${r.total_column_rules} 条列规则` +
-      (r.skipped_files.length ? `\n跳过不支持的文件: ${r.skipped_files.join(', ')}` : '') +
-      `\n策略已导出: ${r.output}`;
-    rep.classList.remove('hidden');
-    status('生成完成，进入人工审核');
-    editPath = r.output;
-    await loadStrategy(r.output);
-    switchTab('edit');
-  } catch (e) {
-    const rep = $('#gen-report');
-    rep.textContent = '生成失败: ' + e;
-    rep.classList.remove('hidden');
-    status('生成失败');
-  } finally {
-    $('#gen-run').disabled = false;
-  }
-};
-
-// ---- ② 编辑策略 ----
-$('#edit-pick').onclick = async () => {
-  const p = await invoke('pick_file', { kind: 'yaml' });
-  if (p) { editPath = p; await loadStrategy(p); }
-};
-
-async function loadStrategy(path) {
-  try {
-    strategy = await invoke('load_strategy', { path });
-    $('#edit-path').value = path;
-    renderStrategy();
-    status(`已加载 ${strategy.sites.length} 个位点`);
-  } catch (e) {
-    status('加载失败: ' + e);
-  }
+function setStatus(msg, kind) {
+  const el = $('#status');
+  el.textContent = msg;
+  el.className = kind ?? '';
 }
-
+function dirname(p) { return String(p).replace(/[\\/][^\\/]*$/, ''); }
 function locText(l) {
   return l.type === 'ppt'
     ? `[PPT] 幻灯片${l.slide ?? 0} 形状${l.shape_id ?? ''}${l.table_location ? ' ' + l.table_location : ''}`
     : `[Excel] ${l.sheet ?? ''}!${l.cell ?? ''}`;
 }
 
-function renderStrategy() {
-  const m = strategy.metadata;
-  $('#edit-meta').textContent =
-    `来源: ${m.source_file}｜生成时间: ${m.generated_at}｜位点总数: ${strategy.sites.length}`;
-
-  const rules = strategy.column_rules ?? [];
-  $('#rules-count').textContent = `(${rules.length})`;
-  $('#rules-table').innerHTML = rules.length
-    ? '<tr><th>匹配</th><th>模式</th><th>动作</th><th>params (JSON)</th><th>类型</th></tr>' +
-      rules.map((r, i) => `<tr>
-        <td>${esc(r.match_type)}</td>
-        <td class="mono">${esc(r.pattern)}</td>
-        <td><select data-rule="${i}" data-f="action">${opts(ACTIONS, r.action)}</select></td>
-        <td><input class="params" data-rule="${i}" value="${esc(JSON.stringify(r.params ?? {}))}"></td>
-        <td>${esc(r.detected_type)}</td></tr>`).join('')
-    : '<tr><td class="hint">（无列规则）</td></tr>';
-
-  $('#sites-count').textContent = `(${strategy.sites.length})`;
-  $('#sites-table').innerHTML =
-    '<tr><th>启用</th><th>site_id</th><th>位置</th><th>原始值</th><th>类型</th><th>动作</th><th>params (JSON)</th></tr>' +
-    strategy.sites.map((s, i) => `<tr>
-      <td><input type="checkbox" data-site="${i}" data-f="enabled" ${s.enabled ? 'checked' : ''}></td>
-      <td class="mono">${esc(s.site_id)}</td>
-      <td>${esc(locText(s.location))}</td>
-      <td class="val" title="${esc(s.original_value)}">${esc(s.original_value)}</td>
-      <td>${esc(s.detected_type)}</td>
-      <td><select data-site="${i}" data-f="action">${opts(ACTIONS, s.action)}</select></td>
-      <td><input class="params" data-site="${i}" value="${esc(JSON.stringify(s.params ?? {}))}"></td></tr>`).join('');
-
-  $('#edit-preview').classList.add('hidden');
+// ---- 向导导航 ----
+function gotoStep(n) {
+  S.step = n;
+  S.maxStep = Math.max(S.maxStep, n);
+  document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'panel' + n));
+  document.querySelectorAll('.stepper .step').forEach((b) => {
+    const i = +b.dataset.step;
+    b.classList.toggle('active', i === n);
+    b.classList.toggle('done', i < n || (i <= S.maxStep && i !== n));
+  });
+  $('#nav-back').classList.toggle('hidden', n === 1);
+  $('#nav-restart').classList.toggle('hidden', n !== 3);
+  $('#nav-next').textContent =
+    n === 1 ? (S.generated ? '审核策略 →' : '扫描并生成策略')
+    : n === 2 ? '保存并下一步'
+    : '执行脱敏';
+  $('#main').scrollTop = 0;
 }
-
-// 把表格编辑状态收回到 strategy 对象；params JSON 非法时抛错
-function collect() {
-  document.querySelectorAll('input[data-f="enabled"]').forEach((el) => {
-    strategy.sites[+el.dataset.site].enabled = el.checked;
-  });
-  document.querySelectorAll('select[data-f="action"]').forEach((el) => {
-    const t = el.dataset.site != null
-      ? strategy.sites[+el.dataset.site]
-      : (strategy.column_rules ?? [])[+el.dataset.rule];
-    if (t) t.action = el.value;
-  });
-  document.querySelectorAll('input.params').forEach((el) => {
-    const t = el.dataset.site != null
-      ? strategy.sites[+el.dataset.site]
-      : (strategy.column_rules ?? [])[+el.dataset.rule];
-    if (!t) return;
-    const raw = el.value.trim();
-    t.params = raw ? JSON.parse(raw) : null;
-  });
-}
-
-$('#edit-save').onclick = async () => {
-  if (!strategy || !editPath) return status('请先打开策略文件');
-  try { collect(); } catch (e) { return status('params JSON 非法: ' + e.message); }
-  try {
-    await invoke('save_strategy', { path: editPath, strategy });
-    status(`已保存: ${editPath}`);
-  } catch (e) {
-    status('保存失败: ' + e);
-  }
+$('#stepper').onclick = (e) => {
+  const b = e.target.closest('.step');
+  if (b && +b.dataset.step <= S.maxStep) gotoStep(+b.dataset.step);
+};
+$('#nav-back').onclick = () => gotoStep(S.step - 1);
+$('#nav-restart').onclick = () => {
+  S = newState();
+  ['#gen-input', '#gen-output', '#search', '#run-out', '#run-operator'].forEach((s) => { $(s).value = ''; });
+  $('#run-dry').checked = true;
+  $('#run-force').checked = false;
+  $('#gen-summary').classList.add('hidden');
+  $('#run-report').classList.add('hidden');
+  gotoStep(1);
+  setStatus('就绪');
+};
+$('#nav-next').onclick = () => {
+  if (S.step === 1) { if (S.generated) advanceToStep2(); else doGenerate(); }
+  else if (S.step === 2) doSaveNext();
+  else doRedact();
 };
 
-$('#edit-yaml-btn').onclick = async () => {
-  if (!strategy) return status('请先打开策略文件');
-  try { collect(); } catch (e) { return status('params JSON 非法: ' + e.message); }
-  try {
-    const yaml = await invoke('preview_yaml', { strategy });
-    const pre = $('#edit-preview');
-    pre.textContent = yaml;
-    pre.classList.remove('hidden');
-    status('YAML 预览（保存后的实际内容）');
-  } catch (e) {
-    status('预览失败: ' + e);
-  }
-};
-
-// ---- ③ 执行脱敏 ----
-$('#run-pick-input').onclick = async () => {
+// ---- ① 选择文件（单文件） ----
+$('#gen-pick').onclick = async () => {
   const p = await invoke('pick_file', { kind: 'input' });
-  if (p) $('#run-input').value = p;
+  if (p) {
+    $('#gen-input').value = p;
+    S.inputPath = p;
+    S.generated = false;
+    $('#gen-summary').classList.add('hidden');
+    if (!$('#gen-output').value) {
+      $('#gen-output').value = p.replace(/\.(xlsx|pptx)$/i, '') + '_策略.yaml';
+    }
+  }
 };
-$('#run-pick-dir').onclick = async () => {
-  const p = await invoke('pick_dir');
-  if (p) $('#run-input').value = p;
+$('#gen-save-pick').onclick = async () => {
+  const base = ($('#gen-input').value.split(/[\\/]/).pop() || '策略').replace(/\.(xlsx|pptx)$/i, '');
+  const p = await invoke('save_file', { defaultName: base + '_策略.yaml' });
+  if (p) $('#gen-output').value = p;
 };
-$('#run-pick-strategy').onclick = async () => {
+
+async function doGenerate() {
+  const input = $('#gen-input').value;
+  const output = $('#gen-output').value;
+  if (!input || !output) return setStatus('请先选择待脱敏文件与策略保存位置', 'err');
+  const btn = $('#nav-next');
+  btn.disabled = true; btn.classList.add('loading');
+  setStatus('扫描中…');
+  const sum = $('#gen-summary');
+  try {
+    const r = await invoke('generate', { input, output });
+    S.strategyPath = r.output;
+    S.generated = true;
+    sum.className = 'card summary-card ok';
+    sum.innerHTML =
+      `<strong>扫描完成</strong>` +
+      `<div class="result-stats">发现 ${r.total_sites} 个敏感位点、${r.total_column_rules} 条列规则</div>` +
+      (r.skipped_files.length ? `<div class="hint">跳过不支持的文件：${esc(r.skipped_files.join(', '))}</div>` : '') +
+      `<div class="result-out">策略已导出：${esc(r.output)}</div>`;
+    sum.classList.remove('hidden');
+    setStatus('生成完成，即将进入人工审核…', 'ok');
+    $('#nav-next').textContent = '审核策略 →';
+    setTimeout(() => { if (S.generated && S.step === 1) advanceToStep2(); }, 900);
+  } catch (e) {
+    sum.className = 'card summary-card fail';
+    sum.innerHTML = `<strong>生成失败</strong><div class="result-out">${esc(e)}</div>`;
+    sum.classList.remove('hidden');
+    setStatus('生成失败', 'err');
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+let advancing = false;
+async function advanceToStep2() {
+  if (advancing || !S.strategyPath) return;
+  advancing = true;
+  try { await loadStrategy(S.strategyPath); gotoStep(2); }
+  finally { advancing = false; }
+}
+
+// ---- ② 审核策略 ----
+$('#edit-pick').onclick = async () => {
   const p = await invoke('pick_file', { kind: 'yaml' });
-  if (p) $('#run-strategy').value = p;
+  if (p) await loadStrategy(p);
 };
+
+async function loadStrategy(path) {
+  try {
+    S.strategy = await invoke('load_strategy', { path });
+    S.strategyPath = path;
+    S.generated = true;
+    $('#search').value = '';
+    renderStrategy();
+    setStatus(`已加载策略：${S.strategy.sites.length} 个位点`, 'ok');
+  } catch (e) {
+    setStatus('加载失败: ' + e, 'err');
+    throw e;
+  }
+}
+
+function actionSelectHtml(item) {
+  const list = TYPE_ACTIONS[item.detected_type] ?? [];
+  const extra = list.includes(item.action) ? [] : [item.action];
+  const opt = (v) => `<option value="${v}"${v === item.action ? ' selected' : ''}>${ACTION_LABEL[v] ?? v}</option>`;
+  return `<select data-f="action">` +
+    (extra.length ? `<optgroup label="当前值">${extra.map(opt).join('')}</optgroup>` : '') +
+    `<optgroup label="${TYPE_LABELS[item.detected_type] ?? item.detected_type}类适用">${list.map(opt).join('')}</optgroup>` +
+    `</select>`;
+}
+
+function paramsHtml(item) {
+  const fields = PARAM_FORMS[item.action] ?? [];
+  const body = fields.map((f) => {
+    const cur = (item.params && item.params[f.k] != null) ? item.params[f.k] : (f.def ?? '');
+    const input = f.type === 'select'
+      ? `<select data-p="${f.k}">${f.options.map(([v, l]) => `<option value="${v}"${String(cur) === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`
+      : `<input type="${f.type}" data-p="${f.k}" value="${esc(cur)}"${f.step ? ` step="${f.step}"` : ''}${f.ph ? ` placeholder="${f.ph}"` : ''}>`;
+    return `<div class="p-field"><label>${f.label}${f.required ? ' *' : ''}</label>${input}</div>`;
+  }).join('');
+  return body + `<p class="example">${ACTION_EXAMPLE[item.action] ?? ''}</p>`;
+}
+
+function cardHtml(item, attr, i) {
+  const isSite = attr === 'data-site';
+  const type = item.detected_type;
+  const searchable = isSite
+    ? [item.site_id, item.original_value, locText(item.location), item.location.sheet, item.location.cell, item.location.slide, item.location.shape_id, item.location.table_location]
+    : [item.pattern, item.match_type];
+  return `<div class="card" ${attr}="${i}" data-search="${esc(searchable.join(' ').toLowerCase())}">` +
+    `<div class="card-top">` +
+      (isSite
+        ? `<label class="switch"><input type="checkbox" data-f="enabled" ${item.enabled ? 'checked' : ''}>启用</label>`
+        : `<span class="switch">匹配方式：${item.match_type === 'regex' ? '正则' : '精确'}</span>`) +
+      `<span class="sid mono" data-hl>${esc(isSite ? item.site_id : item.pattern)}</span>` +
+    `</div>` +
+    (isSite
+      ? `<div class="loc" data-hl>${esc(locText(item.location))}</div>
+         <div class="val-row"><span class="val mono" data-hl title="${esc(item.original_value)}">${esc(item.original_value)}</span>
+         <span class="badge badge-${esc(type)}">${TYPE_LABELS[type] ?? esc(type)}</span></div>`
+      : `<div class="val-row"><span class="badge badge-${esc(type)}">${TYPE_LABELS[type] ?? esc(type)}</span></div>`) +
+    `<div class="act-row"><label>处理方式</label>${actionSelectHtml(item)}</div>` +
+    `<div class="params">${paramsHtml(item)}</div>` +
+  `</div>`;
+}
+
+function renderStrategy() {
+  const st = S.strategy;
+  const m = st.metadata;
+  $('#edit-meta').textContent = `来源：${m.source_file}｜生成时间：${m.generated_at}`;
+
+  const rules = st.column_rules ?? [];
+  $('#rules-count').textContent = `(${rules.length})`;
+  $('#rules-list').innerHTML = rules.length
+    ? rules.map((r, i) => cardHtml(r, 'data-rule', i)).join('')
+    : '<p class="hint">（无列规则）</p>';
+
+  $('#sites-count').textContent = `(${st.sites.length})`;
+  $('#sites-list').innerHTML = st.sites.length
+    ? st.sites.map((s, i) => cardHtml(s, 'data-site', i)).join('')
+    : '<p class="hint">（无敏感位点）</p>';
+
+  document.querySelectorAll('.card').forEach((c, i) => {
+    c.style.animationDelay = Math.min(i, 8) * 80 + 'ms';
+    c.querySelectorAll('[data-hl]').forEach((el) => { el.dataset.text = el.textContent; });
+  });
+  applySearch();
+}
+
+function itemOf(card) {
+  return card.dataset.site != null
+    ? S.strategy.sites[+card.dataset.site]
+    : (S.strategy.column_rules ?? [])[+card.dataset.rule];
+}
+
+// 搜索：纯前端过滤，不影响保存数据（需求 3）
+function applySearch() {
+  const q = $('#search').value.trim().toLowerCase();
+  let shown = 0, total = 0;
+  document.querySelectorAll('.card[data-site], .card[data-rule]').forEach((card) => {
+    total++;
+    const hit = !q || card.dataset.search.includes(q);
+    card.classList.toggle('hidden', !hit);
+    if (hit) shown++;
+    card.querySelectorAll('[data-hl]').forEach((el) => { el.innerHTML = markHtml(el.dataset.text, q); });
+  });
+  $('#search-count').textContent = q ? `匹配 ${shown} / 共 ${total}` : '';
+  $('#empty-search').classList.toggle('hidden', !(q && shown === 0));
+}
+$('#search').oninput = applySearch;
+$('#search-clear').onclick = () => { $('#search').value = ''; applySearch(); };
+
+// 动作切换：就地重渲染参数表单（切换后参数恢复默认值）
+$('#main').addEventListener('change', (e) => {
+  const sel = e.target.closest('select[data-f="action"]');
+  if (sel) {
+    const card = sel.closest('.card');
+    const item = itemOf(card);
+    if (!item) return;
+    item.action = sel.value;
+    item.params = null;
+    card.querySelector('.params').innerHTML = paramsHtml(item);
+    card.classList.remove('error');
+    return;
+  }
+  const ck = e.target.closest('input[data-f="enabled"]');
+  if (ck) {
+    const item = itemOf(ck.closest('.card'));
+    if (item) item.enabled = ck.checked;
+  }
+});
+
+// collect：从表单字段组装 params（替代手填 JSON）；必填缺失/非法时抛错并定位卡片
+function collect() {
+  document.querySelectorAll('.card[data-site], .card[data-rule]').forEach((card) => {
+    const item = itemOf(card);
+    if (!item) return;
+    const defs = PARAM_FORMS[item.action] ?? [];
+    if (!defs.length) { item.params = null; card.classList.remove('error'); return; }
+    const obj = {};
+    for (const f of defs) {
+      const el = card.querySelector(`[data-p="${f.k}"]`);
+      const raw = el ? String(el.value).trim() : '';
+      if (f.required && raw === '') throw { card, msg: `「${ACTION_LABEL[item.action]}」需要填写${f.label}` };
+      if (raw === '') { obj[f.k] = f.def ?? null; continue; }
+      if (f.type === 'number') {
+        const n = Number(raw);
+        if (Number.isNaN(n)) throw { card, msg: `${f.label}必须是数字：${raw}` };
+        obj[f.k] = n;
+      } else {
+        obj[f.k] = raw;
+      }
+    }
+    item.params = obj;
+    card.classList.remove('error');
+  });
+}
+function collectOrFail() {
+  try { collect(); return true; }
+  catch (e) {
+    if (e && e.card) {
+      e.card.classList.remove('hidden');
+      e.card.classList.add('error');
+      e.card.scrollIntoView({ block: 'center' });
+      setStatus(e.msg, 'err');
+    } else {
+      setStatus('参数校验失败: ' + (e.message ?? e), 'err');
+    }
+    return false;
+  }
+}
+
+async function doSaveNext() {
+  if (!S.strategy || !S.strategyPath) return setStatus('请先在步骤①生成策略，或打开已有策略文件', 'err');
+  if (!S.inputPath) return setStatus('缺少输入文件，请回到步骤①选择', 'err');
+  if (!collectOrFail()) return;
+  try {
+    await invoke('save_strategy', { path: S.strategyPath, strategy: S.strategy });
+    setStatus('策略已保存', 'ok');
+    fillStep3();
+    gotoStep(3);
+  } catch (e) {
+    setStatus('保存失败: ' + e, 'err');
+  }
+}
+
+// YAML 预览弹层
+$('#edit-yaml-btn').onclick = async () => {
+  if (!S.strategy) return setStatus('请先加载策略', 'err');
+  if (!collectOrFail()) return;
+  try {
+    $('#modal-body').textContent = await invoke('preview_yaml', { strategy: S.strategy });
+    $('#modal').classList.remove('hidden');
+  } catch (e) {
+    setStatus('预览失败: ' + e, 'err');
+  }
+};
+$('#modal-close').onclick = () => $('#modal').classList.add('hidden');
+$('#modal').onclick = (e) => { if (e.target === $('#modal')) $('#modal').classList.add('hidden'); };
+
+// ---- ③ 执行脱敏（单文件） ----
+function fillStep3() {
+  $('#run-input-show').textContent = S.inputPath ?? '（未选择）';
+  $('#run-strategy-show').textContent = S.strategyPath ?? '（未选择）';
+  if (!$('#run-out').value && S.inputPath) $('#run-out').value = dirname(S.inputPath);
+}
+$('#run-back-edit').onclick = () => gotoStep(2);
 $('#run-pick-out').onclick = async () => {
   const p = await invoke('pick_dir');
   if (p) $('#run-out').value = p;
 };
-$('#run-default').onchange = (e) => {
-  $('#run-strategy').disabled = e.target.checked;
-  $('#run-pick-strategy').disabled = e.target.checked;
-};
 
-$('#run-run').onclick = async () => {
-  const input = $('#run-input').value;
+async function doRedact() {
   const outputDir = $('#run-out').value;
-  if (!input || !outputDir) return status('请选择输入与输出目录');
-  const defaultPolicy = $('#run-default').checked;
-  const strategyPath = $('#run-strategy').value;
-  if (!defaultPolicy && !strategyPath) return status('请选择策略文件，或勾选默认策略');
-
-  status(defaultPolicy ? '执行中（默认策略）…' : '执行中…');
-  $('#run-run').disabled = true;
+  if (!S.inputPath || !S.strategyPath) return setStatus('缺少输入文件或策略，请返回前面步骤', 'err');
+  if (!outputDir) return setStatus('请选择输出目录', 'err');
+  const dryRun = $('#run-dry').checked;
+  const btn = $('#nav-next');
+  btn.disabled = true; btn.classList.add('loading');
+  setStatus(dryRun ? '预览中…' : '执行中…');
   try {
     const r = await invoke('redact', {
-      input,
-      strategyPath: defaultPolicy ? null : strategyPath,
-      defaultPolicy,
+      input: S.inputPath,
+      strategyPath: S.strategyPath,
+      defaultPolicy: false,
       outputDir,
       operator: $('#run-operator').value.trim() || null,
       force: $('#run-force').checked,
-      dryRun: $('#run-dry').checked,
+      dryRun,
     });
-    renderReport(r);
-    status(`完成：处理 ${r.total_processed} 个位点，${r.total_errors} 个错误`);
+    renderResult(r, dryRun);
+    setStatus(`完成：处理 ${r.total_processed} 处，${r.total_errors} 个错误`, r.total_errors ? 'err' : 'ok');
   } catch (e) {
-    $('#run-report').innerHTML = `<pre class="report">执行失败: ${esc(e)}</pre>`;
-    status('执行失败');
+    $('#run-report').className = 'card summary-card fail';
+    $('#run-report').innerHTML = `<strong>执行失败</strong><div class="result-out">${esc(e)}</div>`;
+    $('#run-report').classList.remove('hidden');
+    setStatus('执行失败', 'err');
   } finally {
-    $('#run-run').disabled = false;
+    btn.disabled = false; btn.classList.remove('loading');
   }
-};
+}
 
-function renderReport(r) {
-  if (!r.files.length) {
-    $('#run-report').innerHTML = '<pre class="report">未找到 xlsx/pptx 文件</pre>';
+function renderResult(r, dryRun) {
+  const box = $('#run-report');
+  const f = (r.files ?? [])[0];
+  if (!f) {
+    box.className = 'card summary-card fail';
+    box.innerHTML = '<strong>未处理任何文件</strong>';
+    box.classList.remove('hidden');
     return;
   }
-  const badge = { ok: '✓ 成功', skipped_exists: '⊘ 跳过（已存在）', failed: '✗ 失败' };
-  $('#run-report').innerHTML =
-    '<div class="table-wrap"><table><tr><th>文件</th><th>状态</th><th>处理</th><th>跳过</th><th>错误</th><th>输出 / 信息</th></tr>' +
-    r.files.map((f) => `<tr class="${esc(f.status)}">
-      <td class="val" title="${esc(f.input)}">${esc(f.input)}</td>
-      <td>${badge[f.status] ?? esc(f.status)}</td>
-      <td>${f.processed}</td><td>${f.skipped}</td><td>${f.errors}</td>
-      <td class="val" title="${esc(f.status === 'failed' ? (f.message ?? '') : f.output)}">${esc(f.status === 'failed' ? (f.message ?? '') : f.output)}</td></tr>`).join('') +
-    '</table></div>' +
-    ($('#run-dry').checked
-      ? '<p class="hint">预览模式：未实际修改文件。</p>'
-      : '<p class="hint">审计日志与脱敏文件位于输出目录（*_日志.json / *_脱敏.*），水印已嵌入。</p>');
+  const meta = { ok: ['ok', '成功'], skipped_exists: ['skipped', '跳过（输出已存在）'], failed: ['fail', '失败'] };
+  const [cls, label] = meta[f.status] ?? ['', f.status];
+  box.className = `card summary-card ${cls === 'fail' ? 'fail' : 'ok'}`;
+  box.innerHTML =
+    `<span class="result-badge ${cls}">${esc(label)}</span>` +
+    `<div class="result-stats">处理 ${f.processed} 处 · 跳过 ${f.skipped} · 错误 ${f.errors}</div>` +
+    `<div class="result-out">${esc(f.status === 'failed' ? (f.message ?? '') : f.output)}</div>` +
+    (dryRun
+      ? '<p class="hint">预览模式：未实际修改文件。确认无误后取消勾选「仅预览」再执行一次。</p>'
+      : '<p class="hint">脱敏文件与审计日志（*_日志.json）位于输出目录，水印已嵌入。</p>');
+  box.classList.remove('hidden');
 }
+
+gotoStep(1);
+setStatus('就绪');

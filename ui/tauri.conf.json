@@ -11,10 +11,10 @@
     "windows": [
       {
         "title": "财务文件智能脱敏",
-        "width": 1280,
-        "height": 860,
-        "minWidth": 900,
-        "minHeight": 600
+        "width": 540,
+        "height": 960,
+        "minWidth": 432,
+        "minHeight": 768
       }
     ],
     "security": {
